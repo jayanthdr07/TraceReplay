@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/rakshithkumar608/TraceReplay/security/advisories/new
+    about: Report security vulnerabilities privately.
+
+  - name: Questions and discussions
+    url: https://github.com/rakshithkumar608/TraceReplay/discussions
+    about: Ask questions or discuss ideas with the community.

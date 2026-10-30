@@ -1,0 +1,90 @@
+name: Bug report
+description: Report a bug or unexpected behaviour in TraceReplay.
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please remove API keys, tokens,
+        passwords, and private prompts from all information you share.
+
+  - type: input
+    id: version
+    attributes:
+      label: TraceReplay version
+      placeholder: "0.1.0 or commit hash"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "Python 3.12"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - Recording
+        - Replay engine
+        - Request matching
+        - Tool calls
+        - Fixture storage
+        - pytest integration
+        - Provider integration
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: Explain what happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure TraceReplay...
+        2. Record an interaction...
+        3. Run replay...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages or logs
+      description: Remove all secrets and sensitive data before posting.
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Additional environment information
+      placeholder: Operating system, provider, configuration, etc.
