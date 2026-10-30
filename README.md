@@ -21,6 +21,8 @@ Replay must fail clearly when a matching fixture is missing or invalid. It must 
 
 TraceReplay does not generate AI responses and does not claim that live model outputs are deterministic. It makes previously recorded interactions reusable for testing.
 
+![Architecture](image-1.png)
+
 ## Planned capabilities
 
 The product vision includes:
@@ -104,3 +106,6 @@ For questions and usage discussions, use GitHub Discussions when enabled. For co
 ## License
 
 TraceReplay is planned to be released under the MIT License. See [LICENSE](LICENSE) once the license file has been added to the repository.
+
+![](image.png)
+
