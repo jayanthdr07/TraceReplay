@@ -1,0 +1,1032 @@
+# TraceReplay
+## Complete Project Explanation & Product Blueprint
+
+**Project:** TraceReplay  
+**Category:** Open-Source AI Developer Testing Platform  
+**Version:** 1.1 – Updated Product Blueprint  
+**License:** MIT (planned)  
+**Core Platform:** Python  
+**Additional Platform:** Web Dashboard  
+**Primary Audience:** AI Developers, Python Developers, Software Testing Engineers, and Development Teams
+
+**Tagline:** Record once. Replay reliably. Test without repeated API calls.
+
+---
+
+# 1. What is TraceReplay?
+
+TraceReplay is an open-source developer platform that helps developers test applications powered by Large Language Models (LLMs) without repeatedly calling external AI APIs.
+
+When developers build applications using services such as OpenAI, Anthropic, Google Gemini, or other LLM providers, they frequently send requests to those services while developing and testing their applications.
+
+Every request can involve:
+- API costs.
+- Network communication.
+- Waiting for model responses.
+- Responses that may differ between runs.
+- Dependence on external service availability.
+
+TraceReplay addresses this problem by recording AI interactions and saving them as reusable fixtures.
+
+When a developer runs the same test again, TraceReplay can return the previously recorded response instead of contacting the original AI provider.
+
+Beyond the Python library, TraceReplay will provide a web dashboard where developers and teams can manage recordings, inspect AI interactions, analyze test activity, and debug failures.
+
+The platform will also support multiple AI providers and collaborative team workflows.
+
+**In simple terms:**
+
+TraceReplay is a recording, replay, testing, and debugging platform for AI applications.
+
+Record an interaction once. Save it. Replay it whenever you need to test your application. Inspect and manage your recordings through a visual dashboard.
+
+# 2. The Problem We Are Solving
+
+Consider a developer building an AI-powered chatbot.
+
+The application sends a question to an LLM API:
+
+"Explain how Python decorators work."
+
+The provider returns an answer.
+
+The developer writes application logic around that answer and creates automated tests.
+
+Now imagine running those tests 100 times.
+
+Without a replay system, the application might send 100 API requests.
+
+This creates several problems.
+
+## Problem 1: Repeated API costs
+
+Developers repeatedly call external AI APIs while testing their applications.
+
+Even simple development tests can consume API credits.
+
+## Problem 2: Slow test execution
+
+Each API call requires a network request and model inference.
+
+A test suite that depends on many external requests can become slow.
+
+## Problem 3: Inconsistent outputs
+
+LLM responses can differ between requests because of model behavior, sampling settings, provider changes, or other factors.
+
+As a result, a test may pass once and fail on another run even when the application code has not changed.
+
+## Problem 4: External dependencies
+
+Tests may fail because:
+- The internet connection is unavailable.
+- The AI provider is experiencing an outage.
+- API rate limits have been reached.
+- API credentials are invalid or expired.
+
+These failures make it harder to determine whether the actual application code is working.
+
+## Problem 5: Difficult bug reproduction
+
+Suppose an AI agent makes an unexpected tool call.
+
+A developer wants to reproduce the exact sequence of interactions to investigate the problem.
+
+Repeating the original live request may produce a different response and a different execution path.
+
+This makes debugging harder.
+
+## Problem 6: No centralized visibility into AI tests
+
+When developers work on multiple AI applications, they may have recordings scattered across local files and projects.
+
+They need a centralized place to:
+- Browse recordings.
+- Search previous interactions.
+- Inspect request and response details.
+- Compare test runs.
+- Identify repeated failures.
+
+## Problem 7: Difficult team collaboration
+
+In a development team, different developers may need access to the same recordings and debugging information.
+
+Without team management and shared workspaces, exchanging recordings and investigating issues becomes difficult.
+
+## Problem 8: Limited visibility into application behavior
+
+Developers may need more than a simple pass/fail result.
+
+They need visual tools to inspect:
+- Request and response sequences.
+- Tool execution paths.
+- Failed interactions.
+- Differences between recordings.
+- Performance trends.
+
+TraceReplay aims to provide this visibility through its dashboard and debugging interface.
+
+# 3. How TraceReplay Solves These Problems
+
+TraceReplay introduces two primary operating modes.
+
+## Mode A: Record Mode
+
+In this mode, TraceReplay allows the application to communicate with its real AI provider.
+
+It captures the interaction:
+- Request information.
+- Response information.
+- Operation type.
+- Tool calls and tool outputs, where supported.
+- Relevant metadata.
+- Interaction ordering.
+
+The captured information is saved as a reusable fixture.
+
+## Mode B: Replay Mode
+
+In this mode, TraceReplay uses previously saved interactions.
+
+When the application makes a matching request, TraceReplay finds the corresponding fixture and returns the saved response.
+
+It does not contact the original AI provider.
+
+If a matching fixture does not exist, TraceReplay raises a clear error instead of silently making a live request.
+
+## Mode C: Visual Inspection and Analysis
+
+The TraceReplay web dashboard provides a visual interface for inspecting recordings and test activity.
+
+Developers can:
+- Browse recorded sessions.
+- Inspect requests and responses.
+- Explore tool-call sequences.
+- Identify failed interactions.
+- Compare different test runs.
+- Analyze performance and testing trends.
+
+## Example workflow
+
+```text
+             Developer Application
+                      |
+                      v
+                 TraceReplay SDK
+                      |
+               Select Mode
+                      |
+              +-------+-------+
+              |               |
+              v               v
+          RECORD MODE     REPLAY MODE
+              |               |
+              v               v
+          LLM Provider    Fixture Storage
+              |               |
+              v               v
+          Response       Request Matching
+              |               |
+              v               v
+        Save Interaction  Return Saved Response
+              |               |
+              +-------+-------+
+                      |
+                      v
+              TraceReplay Platform
+                      |
+                      v
+                Web Dashboard
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+       Sessions    Analytics   Debugging
+          |
+          v
+      Team Workspace
+```
+
+# 4. Real-World Example
+
+Imagine a developer building an AI-powered customer support application.
+
+The application receives a customer question:
+
+"Where is my order?"
+
+The application sends the question to an LLM, which returns:
+
+"Your order is currently being shipped and should arrive tomorrow."
+
+TraceReplay records the request and response.
+
+A simplified recording might look like this:
+
+```json
+{
+  "interaction_id": "interaction-001",
+  "operation": "generate",
+  "request": {
+    "prompt": "Where is my order?"
+  },
+  "response": {
+    "text": "Your order is currently being shipped and should arrive tomorrow."
+  }
+}
+```
+
+This is an illustrative fixture, not the final storage schema.
+
+Later, the developer runs the same application test.
+
+Instead of calling the LLM provider again, TraceReplay finds the saved interaction and returns the recorded response.
+
+The application can continue executing its normal business logic.
+
+The developer can now test:
+- Response formatting.
+- Application behavior.
+- Order-status handling.
+- Error handling.
+- UI response rendering.
+- Other application logic.
+
+All without requiring a fresh LLM response for that replayed interaction.
+
+The developer can also open the TraceReplay dashboard and inspect the recording, view its request and response, and compare it with previous test runs.
+
+# 5. Main Features
+
+## 5.1 Interaction Recording
+
+TraceReplay captures supported interactions between an application and an AI provider.
+
+Information includes:
+- Request payload.
+- Response payload.
+- Operation type.
+- Interaction ID.
+- Timestamp.
+- Relevant metadata.
+- Tool-call information.
+
+## 5.2 JSON Fixture Storage
+
+Recorded interactions are stored in readable JSON files.
+
+Benefits:
+- Easy to inspect.
+- Easy to share with a team.
+- Can be committed to Git.
+- Can be reused across test runs.
+- Can be version-controlled.
+
+## 5.3 Interaction Replay
+
+Developers can replay previously recorded interactions.
+
+Features:
+- Return saved responses.
+- Avoid repeated provider requests.
+- Preserve interaction order.
+- Support multiple interactions in one test.
+- Detect missing recordings.
+
+## 5.4 Request Matching
+
+TraceReplay needs to determine whether an incoming request matches a saved interaction.
+
+Matching can consider:
+- Operation type.
+- Prompt or message content.
+- Model configuration.
+- Relevant request parameters.
+- Tool-call information.
+
+Matching behavior should be configurable.
+
+Sensitive or irrelevant fields should not accidentally affect matching.
+
+## 5.5 Tool Call Recording and Replay
+
+Modern AI applications often use tools.
+
+For example, an AI agent might:
+1. Receive a user question.
+2. Decide to search the web.
+3. Call a search tool.
+4. Receive search results.
+5. Generate a final answer.
+
+TraceReplay should capture and replay these interactions.
+
+This allows developers to test AI agent workflows without repeatedly executing external tools.
+
+## 5.6 Pytest Integration
+
+TraceReplay will integrate with pytest, the popular Python testing framework.
+
+Developers should be able to use it naturally inside automated tests.
+
+Example of the intended developer experience:
+
+```python
+def test_customer_support(replay_session):
+    response = replay_session.run(
+        operation="generate",
+        request={"prompt": "Where is my order?"}
+    )
+
+    assert response["text"]
+```
+
+The `replay_session` fixture represents a planned TraceReplay pytest integration.
+
+## 5.7 Clear Debugging Errors
+
+TraceReplay should explain what went wrong.
+
+Examples:
+- Fixture not found.
+- Request mismatch.
+- Invalid fixture format.
+- Unsupported operation.
+- Interaction sequence mismatch.
+
+Errors should provide enough information to identify and fix the problem.
+
+## 5.8 Web Dashboard
+
+TraceReplay will provide a web dashboard for managing and inspecting AI recordings.
+
+The dashboard will serve as the visual control center of the platform.
+
+### Dashboard overview
+
+The main dashboard should show:
+- Total recorded interactions.
+- Total replayed interactions.
+- Number of test sessions.
+- Successful and failed replays.
+- Recent activity.
+- Provider usage breakdown.
+- Average recorded response latency.
+- Recent errors and mismatches.
+
+### Recording management
+
+Developers should be able to:
+- View all recording sessions.
+- Search and filter recordings.
+- Open individual interactions.
+- Inspect request and response payloads.
+- Browse tool calls.
+- View timestamps and metadata.
+- Organize recordings by project.
+
+### Test run management
+
+The dashboard should display:
+- Test run history.
+- Pass/fail information.
+- Failed interactions.
+- Missing fixtures.
+- Request mismatches.
+- Replay execution details.
+
+### Project management
+
+Users should be able to create projects and connect recordings to the relevant application.
+
+Each project should have its own recordings, test sessions, settings, and analytics.
+
+## 5.9 Team Management
+
+TraceReplay will support collaborative development teams.
+
+### Team creation
+
+Users should be able to:
+- Create a team.
+- Invite members.
+- Accept invitations.
+- Manage team settings.
+- Create shared projects.
+
+### Team roles
+
+Initial roles:
+
+**Owner**
+- Full team control.
+- Manage members.
+- Manage team settings.
+- Manage project access.
+
+**Admin**
+- Manage projects.
+- Invite and manage members.
+- Manage team resources.
+
+**Developer**
+- Create and inspect recordings.
+- Run and inspect tests.
+- Access permitted projects.
+
+**Viewer**
+- View permitted projects and recordings.
+- Inspect reports and analytics.
+- Cannot modify project settings.
+
+### Team collaboration
+
+Members should be able to:
+- Access shared recordings.
+- Investigate test failures together.
+- View project activity.
+- Share debugging information.
+- Collaborate on test sessions.
+
+Access must be controlled through explicit project and team permissions.
+
+## 5.10 Advanced Analytics
+
+TraceReplay will provide analytics to help developers understand AI testing behavior.
+
+### Testing analytics
+
+- Total recorded interactions.
+- Total replay executions.
+- Replay success rate.
+- Replay failure rate.
+- Fixture matching failures.
+- Missing fixture frequency.
+- Test execution trends.
+
+### Performance analytics
+
+- Average recorded provider latency.
+- Response latency distribution.
+- Slow interaction identification.
+- Replay execution time.
+- Comparison of recording and replay durations.
+
+### Provider analytics
+
+- Interactions grouped by provider.
+- Model usage breakdown.
+- Provider-specific failures.
+- Request volume trends.
+- Model and provider comparison.
+
+### Cost-related analytics
+
+Where reliable provider pricing information and token usage are available, TraceReplay may estimate the cost of recorded live requests.
+
+The dashboard must distinguish estimated costs from actual billed costs. It must not present replayed interactions as new provider usage.
+
+## 5.11 Complex Visual Debugging Interface
+
+TraceReplay will provide an advanced visual debugging interface for inspecting AI interaction workflows.
+
+This is especially useful for applications that use AI agents, multiple tools, and multi-step reasoning workflows.
+
+### Interaction timeline
+
+Display a chronological timeline of:
+- User input.
+- LLM request.
+- LLM response.
+- Tool invocation.
+- Tool result.
+- Subsequent model request.
+- Final response.
+
+### Execution flow visualization
+
+Represent a recorded interaction as a visual sequence or graph.
+
+For example:
+
+```text
+       User Input
+           |
+           v
+       LLM Request
+           |
+           v
+       Model Response
+           |
+           v
+       Tool Selection
+           |
+           v
+      Search Tool Call
+           |
+           v
+       Search Results
+           |
+           v
+      Second LLM Call
+           |
+           v
+       Final Response
+```
+
+### Request and response inspector
+
+Developers should be able to inspect:
+- Full request payloads.
+- Response payloads.
+- Headers where safely captured.
+- Model information.
+- Tool arguments.
+- Tool results.
+- Metadata.
+
+Sensitive information must be redacted according to configuration and permissions.
+
+### Comparison interface
+
+Developers should be able to compare two recordings or test runs.
+
+The comparison should highlight:
+- Request differences.
+- Response differences.
+- Missing interactions.
+- Additional tool calls.
+- Changed execution sequences.
+- Timing differences.
+
+### Failure inspection
+
+When a replay fails, the interface should help identify:
+- Which interaction failed.
+- Why the request did not match.
+- Which fixture was expected.
+- What information differed.
+- Where the failure occurred in the execution timeline.
+
+# 6. Multi-Provider Support
+
+Supporting multiple AI providers is a major requirement for TraceReplay.
+
+The platform should not be tied to one AI company or SDK.
+
+The long-term objective is to support the major LLM providers and their relevant interaction patterns.
+
+## Planned provider support
+
+### OpenAI
+- Chat Completions.
+- Responses API.
+- Streaming interactions where supported.
+- Tool/function calling.
+
+### Anthropic
+- Messages API.
+- Tool use.
+- Streaming interactions where supported.
+
+### Google Gemini
+- Generate Content.
+- Chat interactions.
+- Function calling.
+- Streaming interactions where supported.
+
+### Other providers
+
+The architecture should also allow integrations for:
+- Groq.
+- Mistral AI.
+- Cohere.
+- AWS Bedrock.
+- Azure OpenAI.
+- OpenAI-compatible APIs.
+- Local model servers.
+- Other compatible providers.
+
+Provider support will be implemented incrementally and validated against each provider's SDK and API behavior.
+
+## Provider abstraction layer
+
+A provider integration layer will normalize supported interactions into TraceReplay's internal recording format.
+
+```text
+       OpenAI SDK       Anthropic SDK
+            |                |
+            v                v
+        Provider Adapters
+                 |
+                 v
+          TraceReplay Core
+                 |
+          +------+------+
+          |             |
+          v             v
+       Recorder      Replayer
+          |             |
+          +------+------+
+                 |
+                 v
+          Fixture Storage
+```
+
+The abstraction layer should preserve provider-specific information when necessary rather than discarding important response details.
+
+# 7. Target Users
+
+### Python Developers
+Developers building applications using Python and external APIs.
+
+### AI Application Developers
+People creating chatbots, AI assistants, RAG applications, and agent-based systems.
+
+### Testing Engineers
+People responsible for automated testing and regression testing.
+
+### AI Startups
+Small teams that want to reduce repeated development API calls and make tests easier to reproduce.
+
+### Software Development Teams
+Teams that need shared recordings, collaboration, debugging, and analytics.
+
+### Open-Source Developers
+Developers who want to contribute to an accessible testing platform.
+
+# 8. Where TraceReplay Fits in an AI Application
+
+TraceReplay acts as a testing layer between the application and supported AI interactions.
+
+Example architecture:
+
+```text
+              Python Application
+                      |
+                      v
+                 TraceReplay SDK
+                      |
+              +-------+-------+
+              |               |
+              v               v
+        Live Provider     Local Fixtures
+              |               |
+              v               v
+        OpenAI / Other     JSON Storage
+        Supported APIs
+              |
+              v
+       Recording Metadata
+              |
+              v
+       TraceReplay Platform
+              |
+              v
+         Web Dashboard
+```
+
+During recording, TraceReplay captures interactions with the live provider.
+
+During replay, it serves saved interactions from local storage.
+
+The dashboard provides centralized inspection and management.
+
+TraceReplay does not replace the AI provider. It does not generate AI responses itself.
+
+# 9. Technology Stack
+
+| Component | Technology | Purpose |
+|---|---|---|
+| Core SDK | Python | Recording and replay engine |
+| Testing | pytest | Automated tests |
+| Data validation | Pydantic | Structured validation where needed |
+| Fixture storage | JSON | Local interaction storage |
+| Backend | Python FastAPI | Dashboard and platform APIs |
+| Frontend | Next.js + TypeScript | Web dashboard |
+| UI | Tailwind CSS + shadcn/ui | Dashboard interface |
+| Database | Supabase PostgreSQL | Users, teams, projects, metadata |
+| Local fixture storage | JSON files | Local recording and replay |
+| Shared storage | Supabase Storage | Shared recording artifacts |
+| Authentication | Supabase Auth | User registration, login, and session management |
+| Realtime | Supabase Realtime | Live dashboard and team activity updates |
+| Authorization | PostgreSQL Row Level Security (RLS) | Enforce team, project, and recording access policies |
+| Analytics | Supabase PostgreSQL and aggregation layer | Usage and testing analytics |
+| Linting | Ruff | Code quality |
+| Type checking | mypy | Static typing |
+| Package building | Hatchling | Python distribution |
+| CI/CD | GitHub Actions | Automated workflows |
+| Documentation | MkDocs | Developer documentation |
+| Package distribution | PyPI | Python installation |
+
+The local SDK should remain usable without requiring a hosted dashboard account.
+
+The cloud dashboard and team functionality will be optional platform services. Supabase provides Auth, PostgreSQL, Storage, and Realtime services; PostgreSQL Row Level Security (RLS) enforces access to platform data. FastAPI remains the platform API layer.
+
+# 10. Project Architecture
+
+The overall system will be divided into two main parts.
+
+## Part A: TraceReplay Python SDK
+
+### Core Engine
+Responsible for:
+- Managing sessions.
+- Selecting operating modes.
+- Coordinating recording and replay.
+- Managing configuration.
+
+### Recorder
+Responsible for:
+- Capturing supported requests.
+- Capturing responses.
+- Capturing tool interactions.
+- Creating interaction records.
+
+### Storage Engine
+Responsible for:
+- Saving JSON fixtures.
+- Loading fixture files.
+- Validating stored information.
+- Organizing recordings.
+
+### Request Matcher
+Responsible for:
+- Comparing incoming requests.
+- Finding matching recordings.
+- Handling matching strategies.
+- Reporting mismatches.
+
+### Replay Engine
+Responsible for:
+- Returning saved responses.
+- Preserving interaction sequences.
+- Handling missing fixtures.
+- Preventing accidental live fallback.
+
+### Provider Integrations
+Responsible for connecting TraceReplay to supported AI SDKs.
+
+### Pytest Integration
+Responsible for:
+- Providing reusable test fixtures.
+- Managing recording sessions.
+- Supporting test isolation.
+- Integrating with pytest execution.
+
+## Part B: TraceReplay Web Platform
+
+### Authentication Service — Supabase Auth
+- Registration.
+- Login.
+- Session management.
+- User profiles.
+
+### Team Service — FastAPI with Supabase PostgreSQL and Row Level Security (RLS)
+- Team creation.
+- Member invitations.
+- Roles and permissions.
+- Team settings.
+
+### Project Service — FastAPI with Supabase PostgreSQL and Row Level Security (RLS)
+- Project creation.
+- Project configuration.
+- Project membership.
+- Project-level access control.
+
+### Recording Management Service
+- Recording metadata.
+- Session history.
+- Interaction indexing.
+- Search and filtering.
+
+### Analytics Service
+- Test statistics.
+- Provider breakdowns.
+- Performance metrics.
+- Usage trends.
+
+### Debugging Service
+- Interaction timelines.
+- Execution flow visualization.
+- Request and response comparisons.
+- Failure inspection.
+
+### Storage Service — Supabase Storage and Supabase PostgreSQL
+- Local fixture support.
+- Shared recording storage in Supabase Storage.
+- Metadata persistence in Supabase PostgreSQL.
+- Access controls enforced through Row Level Security (RLS).
+
+# 11. MVP and Complete Product Scope
+
+TraceReplay will be developed in stages.
+
+The complete vision includes all the features in this document. However, implementing everything at once would make the project difficult to test and maintain.
+
+## Initial MVP
+
+The first release will focus on proving the core product:
+
+1. Python library installation.
+2. Basic configuration.
+3. Interaction data models.
+4. JSON fixture storage.
+5. Recording engine.
+6. Replay engine.
+7. Request matching.
+8. Missing fixture handling.
+9. Basic pytest integration.
+10. One real provider integration.
+11. Documentation and examples.
+12. Automated tests.
+
+## Full Product Scope
+
+The complete product will include all MVP features plus:
+
+13. Web dashboard.
+14. User authentication.
+15. Team creation and management.
+16. Role-based permissions.
+17. Shared projects.
+18. Advanced analytics.
+19. Visual interaction timelines.
+20. Complex execution-flow debugging.
+21. Recording comparison interface.
+22. Failure inspection tools.
+23. Multiple provider integrations.
+24. Centralized recording management.
+25. Shared storage and collaboration.
+
+These are committed product goals, but their implementation order will depend on the stability of the core SDK and platform architecture.
+
+# 12. Security and Reliability
+
+Security must be considered from the beginning.
+
+TraceReplay should:
+- Avoid saving API keys and authorization headers.
+- Provide configurable sensitive-data redaction.
+- Allow developers to control what information is recorded.
+- Avoid silently falling back to live requests during replay.
+- Validate fixture data before using it.
+- Make fixture paths explicit and predictable.
+- Protect shared recordings.
+- Enforce team and project permissions.
+- Secure authentication and session management.
+- Protect private prompts and response data.
+- Provide appropriate storage access controls.
+
+Fixtures may contain private prompts, customer data, or proprietary responses. Documentation must clearly explain that developers are responsible for protecting local fixture files.
+
+For cloud storage, access should be private by default.
+
+# 13. Development Roadmap
+
+## Phase 1 — Product Foundation
+- Finalize product requirements.
+- Finalize system architecture.
+- Create public GitHub repository.
+- Establish development conventions.
+
+## Phase 2 — Core Models
+- Design interaction schemas.
+- Implement configuration.
+- Implement custom exceptions.
+- Add validation and unit tests.
+
+## Phase 3 — Fixture Storage
+- Build JSON serialization.
+- Implement saving and loading.
+- Add fixture validation.
+- Handle invalid files.
+
+## Phase 4 — Recording Engine
+- Capture requests and responses.
+- Store interactions.
+- Support sequential recordings.
+- Add tests.
+
+## Phase 5 — Replay Engine
+- Load saved fixtures.
+- Match requests.
+- Return recorded responses.
+- Prevent live fallback.
+- Handle missing fixtures.
+
+## Phase 6 — Provider Integration
+- Integrate the first real LLM provider.
+- Test recording against the provider.
+- Test replay without provider calls.
+- Add tool interaction support.
+
+## Phase 7 — Pytest Integration
+- Implement pytest fixtures.
+- Support test isolation.
+- Add integration tests.
+- Improve developer experience.
+
+## Phase 8 — Web Platform Foundation
+- Design the dashboard.
+- Implement authentication.
+- Create user and team management.
+- Create projects and permissions.
+- Connect the SDK to the platform.
+
+## Phase 9 — Recording Dashboard
+- Build recording lists.
+- Add search and filters.
+- Add session details.
+- Add request and response inspectors.
+
+## Phase 10 — Advanced Debugging
+- Create interaction timelines.
+- Build execution-flow visualizations.
+- Add request and response comparison.
+- Add failure inspection.
+
+## Phase 11 — Analytics
+- Implement test statistics.
+- Add provider analytics.
+- Add performance metrics.
+- Add usage trends.
+
+## Phase 12 — Multi-Provider Expansion
+- Add Anthropic.
+- Add Gemini.
+- Add Groq.
+- Add Mistral.
+- Add compatible API integrations.
+- Expand provider coverage based on testing.
+
+## Phase 13 — Quality and Security
+- Test edge cases.
+- Review sensitive-data handling.
+- Validate fixture compatibility.
+- Review team permissions.
+- Improve error messages.
+- Run automated quality checks.
+
+## Phase 14 — Documentation and Release
+- Write installation instructions.
+- Create examples.
+- Prepare contribution guidelines.
+- Publish the first GitHub release.
+- Publish the Python package on PyPI.
+- Document the web platform.
+
+# 14. How We Will Measure Success
+
+TraceReplay will be considered successful when developers can:
+
+1. Install TraceReplay using pip.
+2. Connect it to a supported AI application workflow.
+3. Record a real LLM interaction.
+4. Save the interaction as a fixture.
+5. Run the same test in replay mode.
+6. Receive the saved response without contacting the provider.
+7. Reproduce the same test behavior across repeated runs.
+8. Identify missing or mismatched recordings through clear errors.
+9. Inspect recordings through the web dashboard.
+10. Share projects and recordings with authorized team members.
+11. Analyze test and performance trends.
+12. Visually debug multi-step AI interactions.
+13. Switch between supported AI providers through the integration layer.
+
+We should test that replay mode genuinely makes zero provider requests for recorded interactions.
+
+# 15. Project Differentiation
+
+TraceReplay's focus is repeatable testing of AI application interactions, supported by a visual management and debugging platform.
+
+Its intended value proposition combines:
+
+- Recording and replaying AI interactions.
+- Local, inspectable fixtures.
+- Explicit replay behavior.
+- Tool interaction support.
+- Testing-framework integration.
+- Multi-provider support.
+- Team collaboration.
+- Advanced testing analytics.
+- Visual execution debugging.
+- A standalone Python SDK and optional web platform.
+
+We should validate the existing ecosystem and competing libraries before claiming TraceReplay is unique.
+
+Our objective is to build a genuinely useful open-source developer platform, not simply another AI wrapper or API dashboard.
+
+# 16. Final Product Vision
+
+TraceReplay aims to make testing LLM-powered applications feel closer to testing ordinary software.
+
+Developers should be able to record an interaction, save it, replay it, and investigate failures without depending on repeated live AI requests.
+
+Individual developers should have a simple Python library that works locally.
+
+Development teams should have a web dashboard for shared recordings, analytics, project management, and advanced debugging.
+
+The platform should support multiple AI providers through a consistent integration architecture.
+
+**TraceReplay — Record once. Replay reliably. Test, inspect, and debug with confidence.**
