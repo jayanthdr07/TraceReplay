@@ -6,12 +6,62 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
+from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
+from tracereplay.exceptions import (
+    ConfigurationError,
+    FixtureNotFoundError,
+    InvalidFixtureError,
+    LiveFallbackProhibitedError,
+    RecordingError,
+    RequestMismatchError,
+    SequenceMismatchError,
+    ToolExecutionError,
+    TraceReplayError,
+    UnsupportedOperationError,
+)
+from tracereplay.models import (
+    Interaction,
+    OperationType,
+    ReplayMode,
+    RequestPayload,
+    ResponsePayload,
+    SessionRecord,
+    TokenUsage,
+    ToolCallRecord,
+)
+
 __version__ = "0.1.0"
 __author__ = "TraceReplay Contributors"
 __license__ = "MIT"
 
 __all__ = [
+    # Metadata
     "__version__",
     "__author__",
     "__license__",
+    # Configuration
+    "TraceReplayConfig",
+    "get_config",
+    "configure",
+    "reset_config",
+    # Models & Enums
+    "ReplayMode",
+    "OperationType",
+    "TokenUsage",
+    "ToolCallRecord",
+    "RequestPayload",
+    "ResponsePayload",
+    "Interaction",
+    "SessionRecord",
+    # Exceptions
+    "TraceReplayError",
+    "ConfigurationError",
+    "FixtureNotFoundError",
+    "RequestMismatchError",
+    "InvalidFixtureError",
+    "LiveFallbackProhibitedError",
+    "UnsupportedOperationError",
+    "SequenceMismatchError",
+    "RecordingError",
+    "ToolExecutionError",
 ]
