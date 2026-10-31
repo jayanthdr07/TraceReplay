@@ -480,7 +480,7 @@ TraceReplay handles sensitive LLM interactions that may contain proprietary prom
    tracereplay.configure(
        redact_patterns=[
            r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",  # Emails
-           r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b",          # Credit cards
+           r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b",  # Credit cards
        ]
    )
    ```
