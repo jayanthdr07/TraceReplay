@@ -29,6 +29,8 @@ from tracereplay.models import (
     TokenUsage,
     ToolCallRecord,
 )
+from tracereplay.sanitizer import Sanitizer, sanitize_data
+from tracereplay.storage import FixtureResolver, JsonStorageEngine, sanitize_filename
 
 __version__ = "0.1.0"
 __author__ = "TraceReplay Contributors"
@@ -64,4 +66,10 @@ __all__ = [
     "SequenceMismatchError",
     "RecordingError",
     "ToolExecutionError",
+    # Storage & Sanitization
+    "Sanitizer",
+    "sanitize_data",
+    "FixtureResolver",
+    "JsonStorageEngine",
+    "sanitize_filename",
 ]
