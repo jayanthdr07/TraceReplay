@@ -19,6 +19,13 @@ from tracereplay.exceptions import (
     TraceReplayError,
     UnsupportedOperationError,
 )
+from tracereplay.matcher import (
+    MatchResult,
+    RequestMatcher,
+    RequestNormalizer,
+    compute_request_hash,
+    generate_diff,
+)
 from tracereplay.models import (
     Interaction,
     OperationType,
@@ -72,4 +79,10 @@ __all__ = [
     "FixtureResolver",
     "JsonStorageEngine",
     "sanitize_filename",
+    # Matcher
+    "RequestNormalizer",
+    "RequestMatcher",
+    "MatchResult",
+    "compute_request_hash",
+    "generate_diff",
 ]
