@@ -7,6 +7,13 @@ Large Language Models (LLMs) and autonomous AI agents.
 from __future__ import annotations
 
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
+from tracereplay.core import (
+    Recorder,
+    Replayer,
+    TraceReplaySession,
+    get_current_session,
+    session,
+)
 from tracereplay.exceptions import (
     ConfigurationError,
     FixtureNotFoundError,
@@ -53,6 +60,12 @@ __all__ = [
     "get_config",
     "configure",
     "reset_config",
+    # Core Engines & Sessions
+    "session",
+    "get_current_session",
+    "TraceReplaySession",
+    "Recorder",
+    "Replayer",
     # Models & Enums
     "ReplayMode",
     "OperationType",
