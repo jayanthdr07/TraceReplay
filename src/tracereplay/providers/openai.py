@@ -130,9 +130,7 @@ class OpenAIAdapter(BaseProviderAdapter):
             usage_data = raw_response.get("usage", {})
         else:
             first_choice = (
-                raw_response.choices[0]
-                if getattr(raw_response, "choices", None)
-                else None
+                raw_response.choices[0] if getattr(raw_response, "choices", None) else None
             )
             msg_data = getattr(first_choice, "message", None) if first_choice else None
             content = getattr(msg_data, "content", None)
