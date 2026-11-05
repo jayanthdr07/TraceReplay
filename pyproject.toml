@@ -64,6 +64,9 @@ Documentation = "https://github.com/your-org/tracereplay#readme"
 Repository = "https://github.com/your-org/tracereplay"
 Issues = "https://github.com/your-org/tracereplay/issues"
 
+[project.entry-points.pytest11]
+tracereplay = "tracereplay.pytest_plugin"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/tracereplay"]
 
@@ -110,3 +113,7 @@ minversion = "8.0"
 testpaths = ["tests"]
 addopts = "-v --strict-markers"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "trace_replay: Record or replay LLM interactions for this test",
+]

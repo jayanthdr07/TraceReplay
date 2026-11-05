@@ -37,3 +37,8 @@ staging_phase1/
 *.swp
 *.swo
 
+
+# Local Assets & Scratch Directories
+assets/
+scratch/
+.tracereplay/

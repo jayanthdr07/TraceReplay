@@ -19,7 +19,7 @@ _CURRENT_SESSION: contextvars.ContextVar[TraceReplaySession | None] = contextvar
 
 
 class TraceReplaySession:
-    # Manages recording and replaying contexts across sync and async bounderies.
+    # Manages recording and replaying contexts across sync and async boundaries.
 
     def __init__(
         self,
@@ -41,6 +41,15 @@ class TraceReplaySession:
         self.recorder: Recorder | None = None
         self.replayer: Replayer | None = None
         self._token: contextvars.Token[TraceReplaySession | None] | None = None
+
+        # Resolve effective mode for AUTO
+        effective_mode = self.mode
+        if effective_mode == ReplayMode.AUTO:
+            if self.storage.resolver.exists(self.name):
+                effective_mode = ReplayMode.REPLAY
+            else:
+                effective_mode = ReplayMode.RECORD
+        self.mode = effective_mode
 
         if self.mode == ReplayMode.RECORD:
             self.recorder = Recorder(
@@ -72,7 +81,7 @@ class TraceReplaySession:
             _CURRENT_SESSION.reset(self._token)
             self._token = None
 
-        if exc_type is None and self.recorder is not None:
+        if exc_type is None and self.recorder is not None and self.recorder.interactions:
             self.recorder.flush()
 
     async def __aenter__(self) -> TraceReplaySession:
