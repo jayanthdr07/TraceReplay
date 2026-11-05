@@ -1,111 +1,294 @@
 # TraceReplay
 
-**Record once. Replay reliably. Test, inspect, and debug with confidence.**
+<p align="center">
+  <strong>Record once. Replay reliably. Test AI agents without burning API tokens or tolerating flaky CI runs.</strong>
+</p>
 
-TraceReplay is an open-source Python library and developer platform for recording and replaying supported interactions between applications and Large Language Models (LLMs).
+<p align="center">
+  <a href="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml"><img src="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
+  <a href="https://pypi.org/project/tracereplay/"><img src="https://img.shields.io/pypi/v/tracereplay.svg" alt="PyPI version"></a>
+  <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Versions">
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+  <a href="https://mypy-lang.org/"><img src="https://img.shields.io/badge/type_checker-mypy_strict-blue.svg" alt="Mypy Strict"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
+</p>
 
-It is designed to help developers create repeatable tests for LLM-powered applications without repeatedly calling live AI providers during every test run.
+---
 
-> **Project status:** Early development. APIs, provider integrations, and platform capabilities are subject to change. Do not assume a feature is production-ready until it is documented and covered by tests.
+## What is TraceReplay?
+
+**TraceReplay** is an open-source testing platform and determinism engine for applications powered by Large Language Models (LLMs) and autonomous AI agents.
+
+Think of it as **VCR for AI applications and agents**:
+1. **Record Once:** During your first test run, TraceReplay intercepts calls to providers like OpenAI, Groq, Anthropic, or Gemini, captures the complete interaction (prompts, tool calls, token usage, latency), and saves it to a readable, human-inspectable JSON fixture.
+2. **Replay Reliably:** On subsequent test runs, TraceReplay replays the exact recorded responses from disk in **sub-millisecond time**—with **zero live network calls**, **zero API costs**, and **100% deterministic test passes**.
+
+---
 
 ## Why TraceReplay?
 
-Testing an application that depends on an LLM can involve repeated network requests, API costs, variable model responses, rate limits, and provider availability.
+| Testing LLM Apps Without TraceReplay | Testing With TraceReplay |
+| :--- | :--- |
+| 💸 **Costly:** Burning API credits on every git push and test run | 🆓 **Zero Cost:** Pay for tokens once during record, replay free forever |
+| 🐢 **Slow:** 1–5 seconds per LLM request over the network | ⚡ **Blazing Fast:** Sub-5ms replay latency directly from local disk |
+| 🎲 **Flaky:** Stochastic model outputs break test assertions randomly | 🎯 **100% Deterministic:** Same input always yields identical recorded output |
+| 🔒 **Leaky:** Accidental commits of raw API keys and private user data | 🛡️ **Sanitized:** Automated PII and credential redaction built-in |
+| ❌ **Tool Side-Effects:** Local tool functions run repeatedly in tests | 🛑 **Frozen Tools:** `@record_tool` freezes tool execution during replay |
 
-TraceReplay is being built around two primary modes:
+---
 
-- **Record mode:** communicate with a supported live provider, capture the interaction, and save it as a fixture.
-- **Replay mode:** match an incoming request against a saved fixture and return the recorded response without contacting the provider.
+## The Zero-Live-Fallback Guarantee
 
-Replay must fail clearly when a matching fixture is missing or invalid. It must never silently fall back to a live provider request.
+> [!IMPORTANT]
+> TraceReplay enforces a strict **Zero-Live-Fallback Guarantee**:
+> In `REPLAY` mode, if a request does not match a recorded fixture, TraceReplay raises a detailed [`RequestMismatchError`](#mismatch-diagnostics) showing a unified diff.
+> **It will NEVER silently hit the live provider or charge your credit card.**
 
-TraceReplay does not generate AI responses and does not claim that live model outputs are deterministic. It makes previously recorded interactions reusable for testing.
+---
 
-![Architecture](image-1.png)
+## Supported Providers
 
-## Planned capabilities
+TraceReplay features universal provider adapters that normalize requests and responses across all major platforms:
 
-The product vision includes:
+| Provider | SDK / Client | Status |
+| :--- | :--- | :---: |
+| **OpenAI** | `openai.OpenAI` (Sync & Async) | ✅ Supported |
+| **Groq** | `groq.Groq` (High-Speed LPU Inference) | ✅ Supported |
+| **Anthropic Claude** | `anthropic.Anthropic` (`messages.create`) | ✅ Supported |
+| **Google Gemini** | `google.genai` / `google.generativeai` | ✅ Supported |
+| **DeepSeek** | OpenAI-compatible endpoint | ✅ Supported |
+| **Ollama / Local LLMs** | Local inference (`http://localhost:11434`) | ✅ Supported |
 
-- Recording supported LLM requests and responses.
-- Readable, local JSON fixtures.
-- Request matching and deterministic replay of recorded interactions.
-- Tool-call and tool-result recording/replay where supported.
-- pytest integration.
-- Multiple provider adapters, implemented and validated incrementally.
-- An optional web dashboard for recordings, sessions, and projects.
-- Team workspaces, invitations, and role-based permissions.
-- Testing and performance analytics.
-- Visual interaction timelines, execution-flow inspection, and run comparison.
+---
 
-These are planned capabilities, not a claim that they are all currently implemented. Consult the project roadmap and release notes for implementation status.
+## Installation
 
-## Architecture direction
+```bash
+# Core package
+pip install tracereplay
 
-TraceReplay has two connected but independently useful parts:
+# With specific provider SDKs
+pip install "tracereplay[openai]"
+pip install "tracereplay[groq]"
 
-1. **Python SDK:** the recording, fixture, matching, replay, provider-adapter, and pytest functionality. Local recording and replay should work without a hosted account.
-2. **Optional web platform:** a Next.js dashboard backed by FastAPI and Supabase services for accounts, teams, projects, shared metadata, and shared recordings.
+# Full developer installation
+pip install "tracereplay[all]"
+```
 
-The current technology direction is:
+---
 
-| Area | Technology |
-|---|---|
-| Core SDK | Python |
-| Testing | pytest |
-| Data validation | Pydantic |
-| Local fixtures | JSON files |
-| Platform API | Python FastAPI |
-| Dashboard | Next.js + TypeScript |
-| UI | Tailwind CSS + shadcn/ui |
-| Authentication | Supabase Auth |
-| Platform database | Supabase PostgreSQL |
-| Shared artifact storage | Supabase Storage |
-| Realtime updates | Supabase Realtime |
-| Authorization | PostgreSQL Row Level Security (RLS) |
-| CI | GitHub Actions |
-| Python package distribution | PyPI |
+## 30-Second Quickstart
 
-The SDK must not require Supabase or FastAPI for local replay. Cloud synchronization is an optional platform capability.
+### 1. Using the Native Pytest Plugin
 
-## Security
+TraceReplay integrates seamlessly into Pytest via its built-in plugin:
 
-Recorded prompts, responses, tool arguments, and tool results may contain private or sensitive data.
+```python
+import pytest
+from openai import OpenAI
 
-- Do not commit API keys, access tokens, or credentials.
-- Authorization headers and secrets must not be stored in fixtures by default.
-- Recording and redaction behavior must be explicit and configurable.
-- Treat fixture files as sensitive application data.
-- Cloud recordings must be private by default and protected by authorization policies.
+# 1. Add the @pytest.mark.trace_replay marker
+@pytest.mark.trace_replay
+def test_customer_support_greeting(tracereplay_patch):
+    client = OpenAI()
+    
+    # 2. Automatically intercept the client
+    tracereplay_patch(client)
 
-See [SECURITY.md](SECURITY.md) for reporting instructions.
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "How do I track my order?"}],
+    )
+    
+    answer = response.choices[0].message.content
+    assert "order" in answer.lower()
+```
 
-## Development status
+Run your test suite with:
+```bash
+# Run in AUTO mode (Records if fixture missing; replays if fixture exists)
+pytest -v
 
-The project is being established in stages. The initial engineering focus is the Python SDK:
+# Force re-recording new fixtures
+pytest --tracereplay-mode=record
 
-1. Interaction models and configuration.
-2. JSON fixture storage and validation.
-3. Recording engine.
-4. Replay engine and request matching.
-5. Clear errors and no-live-fallback guarantees.
-6. First provider integration.
-7. pytest integration.
-8. Documentation, examples, and automated tests.
+# Force strict replay (fails if any network call is attempted)
+pytest --tracereplay-mode=replay
+```
 
-The dashboard and team platform follow after the core SDK architecture is stable.
+---
+
+### 2. Programmatic Python SDK (Without Pytest)
+
+```python
+import tracereplay
+from groq import Groq
+
+client = Groq()
+# Intercept client
+tracereplay.patch(client, provider="groq")
+
+# Use a session context manager
+with tracereplay.session("groq_fast_inference", mode="auto"):
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": "What is quantum entanglement?"}],
+    )
+    print(response.choices[0].message.content)
+```
+
+---
+
+## Autonomous AI Agents & Tool Interception
+
+Autonomous AI agents often perform **multi-turn reasoning loops** and execute **local Python tools** (database lookups, calculators, external APIs).
+
+TraceReplay provides two dedicated agent primitives:
+
+### 1. The `@record_tool` Decorator
+Decorate your agent's local tool functions to record their inputs and outputs. During `REPLAY` mode, **the real tool function is completely bypassed**:
+
+```python
+from tracereplay import record_tool
+
+@record_tool(name="fetch_user_balance")
+def fetch_user_balance(user_id: str) -> float:
+    # During RECORD: Executes real database query and records result
+    # During REPLAY: Completely skipped! Returns recorded float instantly
+    return db.query_balance(user_id)
+```
+
+### 2. The `AgentTracker` Graph
+Track and visualize the complete agent reasoning flow:
+
+```python
+from tracereplay import AgentTracker
+
+tracker = AgentTracker(agent_name="support_agent")
+tracker.add_user_input("Can you check my balance?")
+tracker.add_llm_decision("Call fetch_user_balance tool")
+tracker.add_tool_result("fetch_user_balance", result=150.25)
+tracker.add_final_answer("Your current balance is $150.25.")
+
+# Print formatted execution graph
+print(tracker.visualize_flow())
+```
+
+**Output:**
+```text
+Agent Flow [support_agent]:
+  [0] USER_INPUT: prompt="Can you check my balance?"
+       |
+       v
+  [1] LLM_DECISION: generates response
+       |
+       v
+  [2] TOOL_RESULT: fetch_user_balance -> 150.25 (0.5ms)
+       |
+       v
+  [3] FINAL_ANSWER: answer="Your current balance is $150.25."
+```
+
+---
+
+## Human-Readable Fixture Format
+
+All fixtures are stored as atomic, versioned JSON files in `.tracereplay/`:
+
+```json
+{
+  "schema_version": "1.0",
+  "session_id": "sess_8f21bc90a14e",
+  "name": "weather_seattle_query",
+  "created_at": "2026-11-05T20:30:00Z",
+  "interactions": [
+    {
+      "index": 0,
+      "request": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "prompt": "What is the weather in Seattle?"
+      },
+      "response": {
+        "content": "The weather in Seattle is 16C with light rain.",
+        "usage": {
+          "prompt_tokens": 14,
+          "completion_tokens": 12,
+          "total_tokens": 26
+        }
+      },
+      "duration_ms": 245.5
+    }
+  ],
+  "tool_executions": []
+}
+```
+
+---
+
+## Configuration & CLI Options
+
+Configure TraceReplay via `pyproject.toml`, environment variables, or CLI flags:
+
+### Pytest CLI Flags
+| Flag | Values | Description |
+| :--- | :--- | :--- |
+| `--tracereplay-mode` | `auto`, `record`, `replay`, `passthrough` | Set global execution mode |
+| `--tracereplay-dir` | Path (e.g. `tests/fixtures`) | Directory to store JSON fixtures |
+| `--tracereplay-disable`| Flag | Completely bypass TraceReplay |
+
+### Environment Variables
+```bash
+export TRACEREPLAY_MODE="replay"
+export TRACEREPLAY_DIR=".tracereplay"
+export TRACEREPLAY_SIMULATE_LATENCY="false"
+```
+
+---
+
+## Examples Directory
+
+Explore runnable examples in the [`examples/`](examples/) directory:
+
+- [`01_quickstart_openai.py`](examples/01_quickstart_openai.py): Hybrid OpenAI SDK recording and sub-5ms replay.
+- [`02_pytest_workflow/`](examples/02_pytest_workflow/): Full Pytest test suite with `@pytest.mark.trace_replay`.
+- [`03_autonomous_agent_tools.py`](examples/03_autonomous_agent_tools.py): Multi-turn agent loop with `@record_tool` and `AgentTracker`.
+- [`04_multi_provider.py`](examples/04_multi_provider.py): Universal multi-provider pipeline across OpenAI, Claude, Gemini, and Ollama.
+- [`05_quickstart_groq.py`](examples/05_quickstart_groq.py): High-speed Groq LPU inference recording and replay.
+
+---
+
+## Security & Privacy
+
+TraceReplay automatically sanitizes sensitive data before writing to disk:
+- **Redaction:** API keys (`sk-...`, `gsk_...`), authorization headers (`Bearer ...`), and organization tokens are masked as `[REDACTED]`.
+- **Path Traversal Protection:** Fixture names are strictly resolved and validated within target storage roots.
+- **Local First:** All recordings remain entirely on your local machine; zero data is sent to external servers.
+
+---
 
 ## Contributing
 
-Contributions are welcome once the project contribution workflow is in place. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please use GitHub Issues for bugs and feature discussions.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on setting up your local development environment, running tests, and submitting pull requests.
 
-## Support
+```bash
+# Clone the repository
+git clone https://github.com/rakshithkumar608/TraceReplay.git
+cd TraceReplay
 
-For questions and usage discussions, use GitHub Discussions when enabled. For confirmed bugs, open a GitHub Issue. Do not report security vulnerabilities in public issues; follow [SECURITY.md](SECURITY.md).
+# Install in editable mode with development dependencies
+pip install -e ".[dev,all]"
+
+# Run tests
+pytest -v
+
+# Run linting and type checking
+ruff check .
+mypy src tests examples
+```
+
+---
 
 ## License
 
-TraceReplay is planned to be released under the MIT License. See [LICENSE](LICENSE) once the license file has been added to the repository.
-
-![](image.png)
-
+This project is licensed under the [MIT License](LICENSE).

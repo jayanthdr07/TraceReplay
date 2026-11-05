@@ -54,15 +54,18 @@ dev = [
 openai = [
     "openai>=1.12.0",
 ]
+groq = [
+    "groq>=0.9.0",
+]
 all = [
-    "tracereplay[dev,openai]",
+    "tracereplay[dev,openai,groq]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/tracereplay"
-Documentation = "https://github.com/your-org/tracereplay#readme"
-Repository = "https://github.com/your-org/tracereplay"
-Issues = "https://github.com/your-org/tracereplay/issues"
+Homepage = "https://github.com/rakshithkumar608/TraceReplay"
+Documentation = "https://github.com/rakshithkumar608/TraceReplay#readme"
+Repository = "https://github.com/rakshithkumar608/TraceReplay"
+Issues = "https://github.com/rakshithkumar608/TraceReplay/issues"
 
 [project.entry-points.pytest11]
 tracereplay = "tracereplay.pytest_plugin"
