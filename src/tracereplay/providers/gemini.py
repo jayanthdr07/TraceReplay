@@ -156,3 +156,4 @@ class GeminiAdapter(BaseProviderAdapter):
             candidates=[candidate],
             usage_metadata=usage,
         )
+
