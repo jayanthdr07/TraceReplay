@@ -8,7 +8,13 @@ from pathlib import Path
 from tracereplay.config import TraceReplayConfig, get_config
 from tracereplay.exceptions import RecordingError
 from tracereplay.matcher.normalizer import RequestNormalizer
-from tracereplay.models import Interaction, RequestPayload, ResponsePayload, SessionRecord
+from tracereplay.models import (
+    Interaction,
+    RequestPayload,
+    ResponsePayload,
+    SessionRecord,
+    ToolCallRecord,
+)
 from tracereplay.sanitizer import Sanitizer
 from tracereplay.storage.json_storage import JsonStorageEngine
 
@@ -31,15 +37,17 @@ class Recorder:
         self.normalizer = normalizer or RequestNormalizer(config=self.config)
         self.session_id = f"sess_{uuid.uuid4().hex[:12]}"
         self.interactions: list[Interaction] = []
+        self.tool_executions: list[ToolCallRecord] = []
         self._interaction_count = 0
 
     @property
     def session_record(self) -> SessionRecord:
-        # Construct the immutable SessionRecord sanpshot.
+        # Construct the immutable SessionRecord snapshot.
         return SessionRecord(
             session_id=self.session_id,
             name=self.session_name,
             interactions=list(self.interactions),
+            tool_executions=list(self.tool_executions),
         )
 
     def record_interaction(
@@ -64,8 +72,13 @@ class Recorder:
         self._interaction_count += 1
         return interaction
 
+    def record_tool_execution(self, tool_call: ToolCallRecord) -> ToolCallRecord:
+        # Record a local tool function execution.
+        self.tool_executions.append(tool_call)
+        return tool_call
+
     def flush(self) -> Path:
         # Write recorded session to storage.
-        if not self.interactions:
-            raise RecordingError(f"No interactions recorded for session: '{self.session_name}")
+        if not self.interactions and not self.tool_executions:
+            raise RecordingError(f"No interactions recorded for session: '{self.session_name}'")
         return self.storage.save(self.session_record)

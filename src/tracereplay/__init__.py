@@ -6,6 +6,7 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
+from tracereplay.agent import AgentStep, AgentStepType, AgentTracker, record_tool
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
 from tracereplay.core import (
     Recorder,
@@ -125,4 +126,9 @@ __all__ = [
     "MatchResult",
     "compute_request_hash",
     "generate_diff",
+    # Agent & Tool Recording
+    "AgentTracker",
+    "AgentStep",
+    "AgentStepType",
+    "record_tool",
 ]

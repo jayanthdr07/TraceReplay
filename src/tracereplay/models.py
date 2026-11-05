@@ -64,7 +64,12 @@ class ToolCallRecord(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict)
     raw_arguments: str | None = Field(default=None)
     result: Any | None = Field(default=None)
+    duration_ms: float = Field(default=0.0)
     error: str | None = Field(default=None)
+
+    @property
+    def output(self) -> Any:
+        return self.result
 
 
 class RequestPayload(BaseModel):
@@ -157,6 +162,7 @@ class SessionRecord(BaseModel):
     test_name: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=_utc_now)
     interactions: list[Interaction] = Field(default_factory=list)
+    tool_executions: list[ToolCallRecord] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
