@@ -1,4 +1,4 @@
-"""Unit tests for the provider abstraction layer and OpenAI client adapter."""
+"""Unit tests for multi-provider adapters (OpenAI, Claude, Gemini, Groq)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ from tracereplay.models import ReplayMode
 from tracereplay.providers import patch, unpatch
 
 
+# ============================================================================
+# OpenAI Mocks & Tests
+# ============================================================================
 class MockCompletions:
     def __init__(self, handler: Callable[..., Any]) -> None:
         self.create = handler
@@ -232,3 +235,142 @@ def test_unpatch_restores_original_method() -> None:
     assert client.chat.completions.create != original_func
     unpatch(patched2)
     assert client.chat.completions.create == original_func
+
+
+# ============================================================================
+# Anthropic (Claude) Mocks & Tests
+# ============================================================================
+class MockClaudeMessages:
+    def __init__(self, handler: Callable[..., Any]) -> None:
+        self.create = handler
+
+
+class MockAnthropicClient:
+    def __init__(self, response_fn: Callable[..., Any] | None = None) -> None:
+        def default_create(*args: Any, **kwargs: Any) -> Any:
+            return {
+                "id": "msg_claude_123",
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hello from Claude!"}],
+                "stop_reason": "end_turn",
+                "usage": {"input_tokens": 10, "output_tokens": 5},
+            }
+
+        self.messages = MockClaudeMessages(response_fn or default_create)
+
+
+def test_anthropic_claude_record_and_replay(tmp_path: Path) -> None:
+    """Verify Anthropic Claude recording and native .content[0].text access on replay."""
+    cfg = TraceReplayConfig(fixtures_dir=tmp_path)
+    session_name = "test_claude_session"
+
+    client = patch(MockAnthropicClient())
+
+    with session(session_name, mode=ReplayMode.RECORD, config=cfg):
+        resp = client.messages.create(
+            model="claude-3-5-sonnet",
+            messages=[{"role": "user", "content": "Hi Claude"}],
+            max_tokens=100,
+        )
+        assert resp["content"][0]["text"] == "Hello from Claude!"
+
+    def blocked_live_call(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("Network should NOT be accessed during Replay mode!")
+
+    offline_client = patch(MockAnthropicClient(response_fn=blocked_live_call))
+    with session(session_name, mode=ReplayMode.REPLAY, config=cfg):
+        replayed = offline_client.messages.create(
+            model="claude-3-5-sonnet",
+            messages=[{"role": "user", "content": "Hi Claude"}],
+            max_tokens=100,
+        )
+        assert replayed.content[0].text == "Hello from Claude!"
+        assert replayed.usage.input_tokens == 10
+        assert replayed.usage.output_tokens == 5
+        assert replayed.stop_reason == "end_turn"
+
+
+# ============================================================================
+# Google Gemini Mocks & Tests
+# ============================================================================
+class MockGeminiModel:
+    def __init__(self, response_fn: Callable[..., Any] | None = None) -> None:
+        def default_create(*args: Any, **kwargs: Any) -> Any:
+            return {
+                "text": "Hello from Google Gemini!",
+                "usage_metadata": {
+                    "prompt_token_count": 8,
+                    "candidates_token_count": 6,
+                    "total_token_count": 14,
+                },
+            }
+
+        self.generate_content = response_fn or default_create
+
+
+def test_gemini_record_and_replay(tmp_path: Path) -> None:
+    """Verify Google Gemini recording and native .text property access on replay."""
+    cfg = TraceReplayConfig(fixtures_dir=tmp_path)
+    session_name = "test_gemini_session"
+
+    model = patch(MockGeminiModel())
+
+    with session(session_name, mode=ReplayMode.RECORD, config=cfg):
+        resp = model.generate_content("Hi Gemini")
+        assert resp["text"] == "Hello from Google Gemini!"
+
+    def blocked_live_call(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("Network should NOT be accessed during Replay mode!")
+
+    offline_model = patch(MockGeminiModel(response_fn=blocked_live_call))
+    with session(session_name, mode=ReplayMode.REPLAY, config=cfg):
+        replayed = offline_model.generate_content("Hi Gemini")
+        assert replayed.text == "Hello from Google Gemini!"
+        assert replayed.usage_metadata.total_token_count == 14
+
+
+# ============================================================================
+# Groq / DeepSeek / Ollama Tests
+# ============================================================================
+class MockGroqClient:
+    def __init__(self) -> None:
+        def default_create(*args: Any, **kwargs: Any) -> Any:
+            return {
+                "id": "chatcmpl_groq_123",
+                "model": "llama-3.3-70b-versatile",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "Answer from Groq LPU"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
+            }
+
+        self.chat = MockChat(default_create)
+
+
+def test_groq_record_and_replay(tmp_path: Path) -> None:
+    """Verify Groq LPU inference recording and replay."""
+    cfg = TraceReplayConfig(fixtures_dir=tmp_path)
+    session_name = "test_groq_session"
+
+    client = patch(MockGroqClient(), provider="groq")
+
+    with session(session_name, mode=ReplayMode.RECORD, config=cfg):
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": "Prompt for Groq"}],
+        )
+        assert resp["choices"][0]["message"]["content"] == "Answer from Groq LPU"
+
+    offline_client = patch(MockGroqClient(), provider="groq")
+    with session(session_name, mode=ReplayMode.REPLAY, config=cfg):
+        replayed = offline_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": "Prompt for Groq"}],
+        )
+        assert replayed.choices[0].message.content == "Answer from Groq LPU"
+        assert replayed.usage.total_tokens == 18

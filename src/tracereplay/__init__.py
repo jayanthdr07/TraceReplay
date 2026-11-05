@@ -44,8 +44,15 @@ from tracereplay.models import (
     ToolCallRecord,
 )
 from tracereplay.providers import (
+    AnthropicAdapter,
+    AnthropicMessageResponse,
     BaseProviderAdapter,
     ChatCompletionResponse,
+    DeepSeekAdapter,
+    GeminiAdapter,
+    GeminiGenerateContentResponse,
+    GroqAdapter,
+    OllamaAdapter,
     OpenAIAdapter,
     patch,
     unpatch,
@@ -73,12 +80,19 @@ __all__ = [
     "TraceReplaySession",
     "Recorder",
     "Replayer",
-    # providers & Patching
+    # Providers & Patching
     "patch",
     "unpatch",
-    "OpenAIAdapter",
     "BaseProviderAdapter",
+    "OpenAIAdapter",
+    "AnthropicAdapter",
+    "GeminiAdapter",
+    "GroqAdapter",
+    "DeepSeekAdapter",
+    "OllamaAdapter",
     "ChatCompletionResponse",
+    "AnthropicMessageResponse",
+    "GeminiGenerateContentResponse",
     # Models & Enums
     "ReplayMode",
     "OperationType",
@@ -99,15 +113,15 @@ __all__ = [
     "SequenceMismatchError",
     "RecordingError",
     "ToolExecutionError",
-    # Storage & Sanitization
+    # Storage & Sanitizer
     "Sanitizer",
     "sanitize_data",
-    "FixtureResolver",
     "JsonStorageEngine",
+    "FixtureResolver",
     "sanitize_filename",
     # Matcher
-    "RequestNormalizer",
     "RequestMatcher",
+    "RequestNormalizer",
     "MatchResult",
     "compute_request_hash",
     "generate_diff",

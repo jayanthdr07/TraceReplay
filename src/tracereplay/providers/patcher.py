@@ -1,4 +1,4 @@
-# Client patcher and method interceptor for TraceReplay.
+"""Client patcher and method interceptor for TraceReplay."""
 
 from __future__ import annotations
 
@@ -10,26 +10,27 @@ from typing import Any
 from tracereplay.core.session import get_current_session
 from tracereplay.exceptions import TraceReplayError
 from tracereplay.models import ReplayMode
+from tracereplay.providers.anthropic import AnthropicAdapter
+from tracereplay.providers.base import BaseProviderAdapter
+from tracereplay.providers.gemini import GeminiAdapter
+from tracereplay.providers.groq import DeepSeekAdapter, GroqAdapter, OllamaAdapter
 from tracereplay.providers.openai import OpenAIAdapter
 
 
 class PatchHandle:
-    # Manages the lifecycle of patched methods on an AI client.
+    """Manages the lifecycle of patched methods on an AI client."""
 
     def __init__(
         self,
         target: Any,
-        original_create: Callable[..., Any],
-        patched_create: Callable[..., Any],
+        restore_fn: Callable[[], None],
     ) -> None:
         self.target = target
-        self.original_create = original_create
-        self.patched_create = patched_create
+        self.restore_fn = restore_fn
 
     def unpatch(self) -> None:
-        # Restore original create method on the client
-        if hasattr(self.target, "chat") and hasattr(self.target.chat, "completions"):
-            self.target.chat.completions.create = self.original_create
+        """Restore original unintercepted method on the client."""
+        self.restore_fn()
 
     def __enter__(self) -> Any:
         return self.target
@@ -38,30 +39,185 @@ class PatchHandle:
         self.unpatch()
 
 
-def patch(client: Any) -> Any:
-    # Wrap an OpenAI or AsyncOpenAI client with TraceReplay interceptors
+def _resolve_adapter(client: Any, provider: str | None = None) -> BaseProviderAdapter:
+    """Resolve the appropriate provider adapter based on client type or provider hint."""
+    prov_hint = (provider or "").lower().strip()
+    class_name = client.__class__.__name__.lower()
+    module_name = getattr(client.__class__, "__module__", "").lower()
+
+    if prov_hint == "anthropic" or "anthropic" in class_name or "anthropic" in module_name:
+        return AnthropicAdapter()
+    if prov_hint == "gemini" or "gemini" in class_name or "google" in module_name:
+        return GeminiAdapter()
+    if prov_hint == "groq" or "groq" in class_name or "groq" in module_name:
+        return GroqAdapter()
+    if prov_hint == "deepseek" or "deepseek" in class_name or "deepseek" in module_name:
+        return DeepSeekAdapter()
+    if prov_hint == "ollama" or "ollama" in class_name or "ollama" in module_name:
+        return OllamaAdapter()
+
+    # Structural fallback based on method signatures
+    if hasattr(client, "messages") and hasattr(client.messages, "create"):
+        return AnthropicAdapter()
+    if hasattr(client, "generate_content"):
+        return GeminiAdapter()
+    if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+        return OpenAIAdapter()
+
+    raise TraceReplayError(
+        f"Unable to auto-detect provider for client '{type(client).__name__}'. "
+        "Pass provider='openai' | 'anthropic' | 'gemini' | 'groq' | 'deepseek' | 'ollama'."
+    )
+
+
+def patch(client: Any, provider: str | None = None) -> Any:
+    """Wrap an AI client (OpenAI, Claude, Gemini, Groq, DeepSeek, Ollama) with interceptors."""
+    adapter = _resolve_adapter(client, provider=provider)
+
+    # 1. Anthropic Claude (client.messages.create)
+    if isinstance(adapter, AnthropicAdapter):
+        if not hasattr(client, "messages") or not hasattr(client.messages, "create"):
+            raise TraceReplayError("Anthropic client must have client.messages.create")
+        orig_anthropic = client.messages.create
+        is_async = asyncio.iscoroutinefunction(orig_anthropic)
+
+        if is_async:
+
+            async def async_anthropic_create(*args: Any, **kwargs: Any) -> Any:
+                sess = get_current_session()
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    return await orig_anthropic(*args, **kwargs)
+                req = adapter.before_request(*args, **kwargs)
+                if sess.mode == ReplayMode.RECORD:
+                    start = time.perf_counter()
+                    raw = await orig_anthropic(*args, **kwargs)
+                    dur = (time.perf_counter() - start) * 1000.0
+                    resp_p = adapter.after_response(raw)
+                    if sess.recorder:
+                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                    return raw
+                if sess.mode == ReplayMode.REPLAY:
+                    if sess.replayer is None:
+                        raise TraceReplayError("No replayer active in session")
+                    replayed_p = await sess.replayer.areplay_interaction(req)
+                    return adapter.build_replayed_response(replayed_p, req)
+                return await orig_anthropic(*args, **kwargs)
+
+            client.messages.create = async_anthropic_create
+            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
+        else:
+
+            def sync_anthropic_create(*args: Any, **kwargs: Any) -> Any:
+                sess = get_current_session()
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    return orig_anthropic(*args, **kwargs)
+                req = adapter.before_request(*args, **kwargs)
+                if sess.mode == ReplayMode.RECORD:
+                    start = time.perf_counter()
+                    raw = orig_anthropic(*args, **kwargs)
+                    dur = (time.perf_counter() - start) * 1000.0
+                    resp_p = adapter.after_response(raw)
+                    if sess.recorder:
+                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                    return raw
+                if sess.mode == ReplayMode.REPLAY:
+                    if sess.replayer is None:
+                        raise TraceReplayError("No replayer active in session")
+                    replayed_p = sess.replayer.replay_interaction(req)
+                    return adapter.build_replayed_response(replayed_p, req)
+                return orig_anthropic(*args, **kwargs)
+
+            client.messages.create = sync_anthropic_create
+            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
+
+        client.__enter__ = handle.__enter__
+        client.__exit__ = handle.__exit__
+        client.unpatch = handle.unpatch
+        return client
+
+    # 2. Google Gemini (model.generate_content)
+    if isinstance(adapter, GeminiAdapter):
+        if not hasattr(client, "generate_content"):
+            raise TraceReplayError("Gemini model/client must have client.generate_content")
+        orig_gemini = client.generate_content
+        is_async = asyncio.iscoroutinefunction(orig_gemini)
+
+        if is_async:
+
+            async def async_gemini_create(*args: Any, **kwargs: Any) -> Any:
+                sess = get_current_session()
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    return await orig_gemini(*args, **kwargs)
+                req = adapter.before_request(*args, **kwargs)
+                if sess.mode == ReplayMode.RECORD:
+                    start = time.perf_counter()
+                    raw = await orig_gemini(*args, **kwargs)
+                    dur = (time.perf_counter() - start) * 1000.0
+                    resp_p = adapter.after_response(raw)
+                    if sess.recorder:
+                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                    return raw
+                if sess.mode == ReplayMode.REPLAY:
+                    if sess.replayer is None:
+                        raise TraceReplayError("No replayer active in session")
+                    replayed_p = await sess.replayer.areplay_interaction(req)
+                    return adapter.build_replayed_response(replayed_p, req)
+                return await orig_gemini(*args, **kwargs)
+
+            client.generate_content = async_gemini_create
+            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
+        else:
+
+            def sync_gemini_create(*args: Any, **kwargs: Any) -> Any:
+                sess = get_current_session()
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    return orig_gemini(*args, **kwargs)
+                req = adapter.before_request(*args, **kwargs)
+                if sess.mode == ReplayMode.RECORD:
+                    start = time.perf_counter()
+                    raw = orig_gemini(*args, **kwargs)
+                    dur = (time.perf_counter() - start) * 1000.0
+                    resp_p = adapter.after_response(raw)
+                    if sess.recorder:
+                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                    return raw
+                if sess.mode == ReplayMode.REPLAY:
+                    if sess.replayer is None:
+                        raise TraceReplayError("No replayer active in session")
+                    replayed_p = sess.replayer.replay_interaction(req)
+                    return adapter.build_replayed_response(replayed_p, req)
+                return orig_gemini(*args, **kwargs)
+
+            client.generate_content = sync_gemini_create
+            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
+
+        client.__enter__ = handle.__enter__
+        client.__exit__ = handle.__exit__
+        client.unpatch = handle.unpatch
+        return client
+
+    # 3. OpenAI / Groq / DeepSeek / Ollama (client.chat.completions.create)
     if not hasattr(client, "chat") or not hasattr(client.chat, "completions"):
         raise TraceReplayError(
-            "Target client does not have client.chat.completions.create."
-            "Ensure you pass an instantiated OpenAI or AsyncOpenAI client."
+            "Target client does not have client.chat.completions.create. "
+            "Ensure you pass an instantiated OpenAI, Groq, DeepSeek, or Ollama client."
         )
 
-    original_create = client.chat.completions.create
-    adapter = OpenAIAdapter()
-    is_async = asyncio.iscoroutinefunction(original_create)
+    orig_openai = client.chat.completions.create
+    is_async = asyncio.iscoroutinefunction(orig_openai)
 
     if is_async:
 
         async def async_intercepted_create(*args: Any, **kwargs: Any) -> Any:
             sess = get_current_session()
             if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                return await original_create(*args, **kwargs)
+                return await orig_openai(*args, **kwargs)
 
             request = adapter.before_request(*args, **kwargs)
 
             if sess.mode == ReplayMode.RECORD:
                 start = time.perf_counter()
-                raw_response = await original_create(*args, **kwargs)
+                raw_response = await orig_openai(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start) * 1000.0
                 response_payload = adapter.after_response(raw_response)
                 if sess.recorder:
@@ -76,22 +232,24 @@ def patch(client: Any) -> Any:
                 replayed_payload = await sess.replayer.areplay_interaction(request)
                 return adapter.build_replayed_response(replayed_payload, request)
 
-            return await original_create(*args, **kwargs)
+            return await orig_openai(*args, **kwargs)
 
         client.chat.completions.create = async_intercepted_create
-        handle = PatchHandle(client, original_create, async_intercepted_create)
+        handle = PatchHandle(
+            client, lambda: setattr(client.chat.completions, "create", orig_openai)
+        )
     else:
 
         def sync_intercepted_create(*args: Any, **kwargs: Any) -> Any:
             sess = get_current_session()
             if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                return original_create(*args, **kwargs)
+                return orig_openai(*args, **kwargs)
 
             request = adapter.before_request(*args, **kwargs)
 
             if sess.mode == ReplayMode.RECORD:
                 start = time.perf_counter()
-                raw_response = original_create(*args, **kwargs)
+                raw_response = orig_openai(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start) * 1000.0
                 response_payload = adapter.after_response(raw_response)
                 if sess.recorder:
@@ -106,10 +264,12 @@ def patch(client: Any) -> Any:
                 replayed_payload = sess.replayer.replay_interaction(request)
                 return adapter.build_replayed_response(replayed_payload, request)
 
-            return original_create(*args, **kwargs)
+            return orig_openai(*args, **kwargs)
 
         client.chat.completions.create = sync_intercepted_create
-        handle = PatchHandle(client, original_create, sync_intercepted_create)
+        handle = PatchHandle(
+            client, lambda: setattr(client.chat.completions, "create", orig_openai)
+        )
 
     client.__enter__ = handle.__enter__
     client.__exit__ = handle.__exit__
@@ -118,7 +278,7 @@ def patch(client: Any) -> Any:
 
 
 def unpatch(client: Any) -> Any:
-    # Convenience helper to unpatch an AI client.
+    """Convenience helper to unpatch an AI client."""
     if hasattr(client, "unpatch"):
         client.unpatch()
     return client
