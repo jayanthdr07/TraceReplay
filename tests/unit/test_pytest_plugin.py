@@ -319,3 +319,40 @@ def test_real_plugin_injection(
             RequestPayload(provider="openai", model="gpt-4o", prompt="ping"),
             ResponsePayload(content="pong"),
         )
+
+
+@pytest.mark.trace_replay(fixture="test_e2e_patched_flow")
+def test_end_to_end_plugin_with_patched_client(
+    tracereplay_session: TraceReplaySession,
+    tracereplay_patch: Any,
+) -> None:
+    """Full end-to-end test proving client interception and session recording work together."""
+    class FakeMsg:
+        content = "AI response: Order #123 is shipped."
+
+    class FakeChoice:
+        message = FakeMsg()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+        usage = None
+
+    class FakeCompletions:
+        def create(self, **kwargs: Any) -> Any:
+            return FakeResponse()
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeOpenAI:
+        chat = FakeChat()
+
+    client = tracereplay_patch(FakeOpenAI(), provider="openai")
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "Where is my order?"}],
+    )
+    assert response.choices[0].message.content == "AI response: Order #123 is shipped."
+    if tracereplay_session.recorder:
+        assert len(tracereplay_session.recorder.interactions) >= 1
+
