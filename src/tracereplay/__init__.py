@@ -43,6 +43,13 @@ from tracereplay.models import (
     TokenUsage,
     ToolCallRecord,
 )
+from tracereplay.providers import (
+    BaseProviderAdapter,
+    ChatCompletionResponse,
+    OpenAIAdapter,
+    patch,
+    unpatch,
+)
 from tracereplay.sanitizer import Sanitizer, sanitize_data
 from tracereplay.storage import FixtureResolver, JsonStorageEngine, sanitize_filename
 
@@ -66,6 +73,12 @@ __all__ = [
     "TraceReplaySession",
     "Recorder",
     "Replayer",
+    # providers & Patching
+    "patch",
+    "unpatch",
+    "OpenAIAdapter",
+    "BaseProviderAdapter",
+    "ChatCompletionResponse",
     # Models & Enums
     "ReplayMode",
     "OperationType",
