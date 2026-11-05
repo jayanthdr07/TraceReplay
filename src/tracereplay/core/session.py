@@ -8,8 +8,9 @@ from typing import Any
 from tracereplay.config import TraceReplayConfig, get_config
 from tracereplay.core.recorder import Recorder
 from tracereplay.core.replayer import Replayer
+from tracereplay.exceptions import LiveFallbackProhibitedError
 from tracereplay.matcher.rules import RequestMatcher
-from tracereplay.models import ReplayMode
+from tracereplay.models import ReplayMode, ToolCallRecord
 from tracereplay.sanitizer import Sanitizer
 from tracereplay.storage.json_storage import JsonStorageEngine
 
@@ -67,6 +68,27 @@ class TraceReplaySession:
                 config=self.config,
             )
 
+    def record_tool_call(self, tool_call: ToolCallRecord) -> None:
+        # Record a tool function invocation.
+        if self.recorder is not None:
+            self.recorder.record_tool_execution(tool_call)
+
+    def replay_tool_call(self, function_name: str, arguments: dict[str, Any]) -> Any:
+        # Replay a recorded tool function invocation.
+        if self.replayer is None:
+            raise LiveFallbackProhibitedError(
+                f"Cannot replay tool call '{function_name}': session is not in REPLAY mode."
+            )
+        return self.replayer.replay_tool_execution(function_name, arguments)
+
+    async def areplay_tool_call(self, function_name: str, arguments: dict[str, Any]) -> Any:
+        # Async replay of a recorded tool function invocation.
+        if self.replayer is None:
+            raise LiveFallbackProhibitedError(
+                f"Cannot replay tool call '{function_name}': session is not in REPLAY mode."
+            )
+        return await self.replayer.areplay_tool_execution(function_name, arguments)
+
     def __enter__(self) -> TraceReplaySession:
         self._token = _CURRENT_SESSION.set(self)
         return self
@@ -81,7 +103,11 @@ class TraceReplaySession:
             _CURRENT_SESSION.reset(self._token)
             self._token = None
 
-        if exc_type is None and self.recorder is not None and self.recorder.interactions:
+        if (
+            exc_type is None
+            and self.recorder is not None
+            and (self.recorder.interactions or self.recorder.tool_executions)
+        ):
             self.recorder.flush()
 
     async def __aenter__(self) -> TraceReplaySession:
