@@ -199,3 +199,4 @@ class AnthropicAdapter(BaseProviderAdapter):
             stop_reason=response_payload.finish_reason or "end_turn",
             usage=usage,
         )
+
