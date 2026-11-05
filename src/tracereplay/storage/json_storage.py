@@ -122,3 +122,9 @@ class JsonStorageEngine:
                 fixture_path=str(target_path),
                 validation_error=str(err),
             ) from err
+
+    def exists(self, session_name_or_path: str | Path) -> bool:
+        """Check whether a fixture exists on disk."""
+        if isinstance(session_name_or_path, Path):
+            return session_name_or_path.is_file()
+        return self.resolver.exists(session_name_or_path)
