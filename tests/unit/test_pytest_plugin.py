@@ -105,7 +105,8 @@ def test_generate_fixture_name_with_marker_kwargs() -> None:
 def test_generate_fixture_name_with_marker_args() -> None:
     req = MagicMock(spec=pytest.FixtureRequest)
     marker = MagicMock()
-    marker.kwargs = {}
+    empty_kwargs: dict[str, Any] = {}
+    marker.kwargs = empty_kwargs
     marker.args = ("positional_flow_name",)
     req.node.get_closest_marker.return_value = marker
     del req.node.callspec
@@ -129,10 +130,15 @@ def test_generate_fixture_name_parameterized() -> None:
 
 def test_resolve_tracereplay_config() -> None:
     req = MagicMock(spec=pytest.FixtureRequest)
-    req.config.getoption.side_effect = lambda key: {
-        "tracereplay_mode": "record",
-        "tracereplay_dir": "custom/fixtures",
-    }.get(key)
+
+    def mock_getoption(key: str) -> Any:
+        options = {
+            "tracereplay_mode": "record",
+            "tracereplay_dir": "custom/fixtures",
+        }
+        return options.get(key)
+
+    req.config.getoption.side_effect = mock_getoption
     req.config.getini.return_value = None
 
     cfg = resolve_tracereplay_config(req)
@@ -283,9 +289,11 @@ def test_auto_mode_switch_record_to_replay(tmp_path: Path) -> None:
 def test_tracereplay_disable_forces_passthrough(tmp_path: Path) -> None:
     cfg = TraceReplayConfig(fixtures_dir=tmp_path, mode=ReplayMode.RECORD)
     req = MagicMock(spec=pytest.FixtureRequest)
-    req.config.getoption.side_effect = lambda key, default=None: (
-        True if key == "tracereplay_disable" else default
-    )
+
+    def mock_disable_option(key: str, default: Any = None) -> Any:
+        return True if key == "tracereplay_disable" else default
+
+    req.config.getoption.side_effect = mock_disable_option
     req.node.get_closest_marker.return_value = None
 
     session_gen = create_tracereplay_session(req, cfg)
@@ -328,24 +336,24 @@ def test_end_to_end_plugin_with_patched_client(
 ) -> None:
     """Full end-to-end test proving client interception and session recording work together."""
     class FakeMsg:
-        content = "AI response: Order #123 is shipped."
+        content: str = "AI response: Order #123 is shipped."
 
     class FakeChoice:
-        message = FakeMsg()
+        message: FakeMsg = FakeMsg()
 
     class FakeResponse:
-        choices = [FakeChoice()]
-        usage = None
+        choices: list[Any] = [FakeChoice()]
+        usage: Any = None
 
     class FakeCompletions:
         def create(self, **kwargs: Any) -> Any:
             return FakeResponse()
 
     class FakeChat:
-        completions = FakeCompletions()
+        completions: FakeCompletions = FakeCompletions()
 
     class FakeOpenAI:
-        chat = FakeChat()
+        chat: FakeChat = FakeChat()
 
     client = tracereplay_patch(FakeOpenAI(), provider="openai")
     response = client.chat.completions.create(
