@@ -90,7 +90,7 @@ def _build_openai_exception(fault: Fault) -> Exception | None:
 def _build_anthropic_exception(fault: Fault) -> Exception | None:
     """Build a native Anthropic SDK exception if anthropic and httpx are installed."""
     try:
-        import anthropic  # type: ignore[import-not-found]
+        import anthropic
         import httpx
 
         url = "https://api.anthropic.com/v1/messages"

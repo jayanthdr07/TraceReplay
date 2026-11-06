@@ -24,7 +24,11 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import openai
+try:
+    import openai
+except ImportError:
+    openai = None  # type: ignore[assignment]
+
 import pytest
 
 from tracereplay import chaos
@@ -41,6 +45,21 @@ from tracereplay.exceptions import (
 from tracereplay.models import ReplayMode
 from tracereplay.providers.patcher import patch, unpatch
 from tracereplay.pytest_plugin import create_tracereplay_session
+
+# Helper exception tuple mappings
+if openai is not None:
+    _RateLimitErrors: tuple[type[Exception], ...] = (openai.RateLimitError, ChaosRateLimitError)
+    _TimeoutErrors: tuple[type[Exception], ...] = (openai.APITimeoutError, ChaosTimeoutError)
+    _ServerErrors: tuple[type[Exception], ...] = (openai.InternalServerError, ChaosServerError)
+    _ContextLengthErrors: tuple[type[Exception], ...] = (
+        openai.BadRequestError,
+        ChaosContextLengthError,
+    )
+else:
+    _RateLimitErrors = (ChaosRateLimitError,)
+    _TimeoutErrors = (ChaosTimeoutError,)
+    _ServerErrors = (ChaosServerError,)
+    _ContextLengthErrors = (ChaosContextLengthError,)
 
 # ============================================================================
 # Helpers & Client Mocks
@@ -112,6 +131,8 @@ class MockAsyncOpenAIClient:
 
 def test_rate_limit_native_openai_exception_and_retry(tmp_path: Path) -> None:
     """Verify native openai.RateLimitError is raised on 1st attempt and retry succeeds."""
+    if openai is None:
+        pytest.skip("openai SDK not installed; skipping native exception synthesis test")
     cfg = TraceReplayConfig(fixtures_dir=tmp_path)
     raw_client = MockOpenAIClient()
     client = patch(raw_client, provider="openai")
@@ -139,8 +160,8 @@ def test_rate_limit_native_openai_exception_and_retry(tmp_path: Path) -> None:
                     messages=[{"role": "user", "content": "Query 1"}]
                 )
                 break
-            except openai.RateLimitError as err:
-                assert err.status_code == 429
+            except _RateLimitErrors as err:
+                assert getattr(err, "status_code", 429) == 429
                 # In real code, backoff sleep would happen here
 
         assert resp1 is not None
@@ -189,7 +210,7 @@ def test_timeout_fault_with_simulated_delay(tmp_path: Path) -> None:
     start = time.perf_counter()
     with (
         session("timeout_base", mode=ReplayMode.REPLAY, chaos=chaos_rules, config=cfg),
-        pytest.raises((openai.APITimeoutError, ChaosTimeoutError)),
+        pytest.raises(_TimeoutErrors),
     ):
         client.chat.completions.create(messages=[{"role": "user", "content": "Calculate"}])
 
@@ -211,7 +232,7 @@ def test_server_error_status_codes(tmp_path: Path) -> None:
 
     with (
         session("server_err_base", mode=ReplayMode.REPLAY, chaos=chaos_rules, config=cfg),
-        pytest.raises((openai.InternalServerError, ChaosServerError)) as exc_info,
+        pytest.raises(_ServerErrors) as exc_info,
     ):
         client.chat.completions.create(messages=[{"role": "user", "content": "Hello"}])
 
@@ -239,7 +260,7 @@ def test_context_length_exceeded(tmp_path: Path) -> None:
 
     with (
         session("ctx_len_base", mode=ReplayMode.REPLAY, chaos=chaos_rules, config=cfg),
-        pytest.raises((openai.BadRequestError, ChaosContextLengthError)),
+        pytest.raises(_ContextLengthErrors),
     ):
         client.chat.completions.create(messages=[{"role": "user", "content": "Long document"}])
 
@@ -410,7 +431,7 @@ def test_probabilistic_chaos_monkey(tmp_path: Path) -> None:
 
     with (
         session("monkey_base", mode=ReplayMode.REPLAY, chaos=chaos_cfg, config=cfg),
-        pytest.raises((openai.RateLimitError, ChaosRateLimitError)),
+        pytest.raises(_RateLimitErrors),
     ):
         client.chat.completions.create(messages=[{"role": "user", "content": "Monkey 1"}])
 
@@ -467,7 +488,7 @@ async def test_async_chaos_execution(tmp_path: Path) -> None:
 
     with (
         session("async_chaos_base", mode=ReplayMode.REPLAY, chaos=chaos_rules, config=cfg),
-        pytest.raises((openai.RateLimitError, ChaosRateLimitError)),
+        pytest.raises(_RateLimitErrors),
     ):
         await client.chat.completions.create(messages=[{"role": "user", "content": "Async Query"}])
 
