@@ -33,6 +33,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Replay Bypass:** In `REPLAY` mode, completely bypasses the real Python function and returns recorded fixture data deterministically.
 - **Sequential Tool Call Verification:** Strict index-based tool matching preventing out-of-order execution during agent reasoning loops.
 
+#### Milestone 2: Multi-Provider Expansion & Universal Model Switching (Phase 9)
+- **Official Mistral AI Adapter (`MistralAdapter`):**
+  - Dedicated adapter for modern `mistralai>=1.0.0` SDK (`Mistral` client).
+  - Intercepts synchronous `client.chat.complete` and asynchronous `client.chat.complete_async`.
+  - Normalizes Mistral messages, tool calls, and token usage statistics.
+  - Reconstructs native-compatible `MistralChatCompletionResponse` during deterministic replay.
+- **Generic OpenAI-Compatible Adapter (`GenericOpenAIAdapter`):**
+  - Universal adapter for self-hosted and local inference engines: Ollama (`:11434`), vLLM (`:8000`), LM Studio (`:1234`), and LocalAI (`:8080`).
+  - Ephemeral parameter sanitization stripping server-specific flags (`num_ctx`, `keep_alive`, `options`, `repetition_penalty`, `top_k`) ensuring environment-agnostic deterministic fixture hashing.
+- **Enhanced Anthropic Claude Adapter:**
+  - Full tool use roundtrip support (`tools`, `tool_choice`, `tool_use`, and `tool_result` content blocks).
+  - Reconstructs `AnthropicMessageResponse` populated with `AnthropicToolUseBlock` instances and `stop_reason="tool_use"`.
+- **Enhanced Google Gemini Adapter:**
+  - Function calling and tool definition extraction (`function_declarations`).
+  - Reconstructs `GeminiFunctionCall` within candidate parts and provides ergonomic `.function_calls` property.
+- **Universal Dynamic Provider Auto-Patcher:**
+  - Dynamic resolution for Mistral, Generic, Anthropic, Gemini, Groq, DeepSeek, and Ollama based on client types, base URL ports, and explicit hints.
+- **Cross-Provider Model Switching Suite:**
+  - Unit and integration tests demonstrating seamless runtime swapping across 5 distinct LLM providers with identical assertions and zero live fallback.
+
 #### Open-Source SDK Polish (Option A)
 - **GitHub Actions CI Matrix:** Multi-OS (Ubuntu, Windows) automated testing across Python `3.10`, `3.11`, `3.12`, and `3.13` with strict `ruff` linting, `mypy` strict type-checking, and `twine` packaging checks.
 - **Interactive Runnable Examples (`examples/`):**

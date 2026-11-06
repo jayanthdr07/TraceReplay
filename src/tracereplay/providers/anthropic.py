@@ -72,26 +72,41 @@ class AnthropicAdapter(BaseProviderAdapter):
     def before_request(self, *args: Any, **kwargs: Any) -> RequestPayload:
         """Extract and normalize request parameters into RequestPayload."""
         model = str(kwargs.get("model", "claude-3-5-sonnet"))
-        messages = list(kwargs.get("messages", []))
+        raw_messages = list(kwargs.get("messages", []))
         tools = kwargs.get("tools")
+        tool_choice = kwargs.get("tool_choice")
         temperature = kwargs.get("temperature")
         max_tokens = kwargs.get("max_tokens")
+
+        normalized_messages: list[dict[str, Any]] = []
+        for msg in raw_messages:
+            if isinstance(msg, dict):
+                normalized_messages.append(msg)
+            elif hasattr(msg, "role") and hasattr(msg, "content"):
+                normalized_messages.append({
+                    "role": msg.role,
+                    "content": msg.content,
+                })
+            else:
+                normalized_messages.append({"role": "user", "content": str(msg)})
 
         parameters: dict[str, Any] = {}
         if temperature is not None:
             parameters["temperature"] = temperature
         if max_tokens is not None:
             parameters["max_tokens"] = max_tokens
+        if tool_choice is not None:
+            parameters["tool_choice"] = tool_choice
 
         for k, v in kwargs.items():
-            if k not in {"model", "messages", "tools", "temperature", "max_tokens"}:
+            if k not in {"model", "messages", "tools", "tool_choice", "temperature", "max_tokens"}:
                 parameters[k] = v
 
         return RequestPayload(
             provider=self.provider_name,
             model=model,
             operation=OperationType.CHAT_COMPLETION,
-            messages=messages,
+            messages=normalized_messages,
             parameters=parameters,
             tools=tools,
         )
@@ -193,10 +208,12 @@ class AnthropicAdapter(BaseProviderAdapter):
             output_tokens=response_payload.usage.completion_tokens,
         )
 
+        default_stop = "tool_use" if response_payload.tool_calls else "end_turn"
+        stop_reason = response_payload.finish_reason or default_stop
+
         return AnthropicMessageResponse(
             model=request.model,
             content=blocks,
-            stop_reason=response_payload.finish_reason or "end_turn",
+            stop_reason=stop_reason,
             usage=usage,
         )
-

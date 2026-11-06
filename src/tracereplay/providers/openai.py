@@ -134,7 +134,8 @@ class OpenAIAdapter(BaseProviderAdapter):
             )
             msg_data = getattr(first_choice, "message", None) if first_choice else None
             content = getattr(msg_data, "content", None)
-            finish_reason = getattr(first_choice, "finish_reason", "stop") or "stop"
+            raw_finish_reason = getattr(first_choice, "finish_reason", "stop") or "stop"
+            finish_reason = raw_finish_reason if isinstance(raw_finish_reason, str) else "stop"
             tool_calls_data = getattr(msg_data, "tool_calls", None) or []
             usage_data = getattr(raw_response, "usage", None)
 
