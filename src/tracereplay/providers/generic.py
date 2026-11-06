@@ -9,17 +9,19 @@ from tracereplay.providers.openai import OpenAIAdapter
 
 # Parameters injected by local inference engines that should be stripped or normalized
 # to prevent environment-specific fixture mismatches
-LOCAL_ENGINE_EPHEMERAL_PARAMS: frozenset[str] = frozenset({
-    "keep_alive",
-    "num_ctx",
-    "repeat_penalty",
-    "repetition_penalty",
-    "top_k",
-    "seed",
-    "options",
-    "extra_body",
-    "model_kwargs",
-})
+LOCAL_ENGINE_EPHEMERAL_PARAMS: frozenset[str] = frozenset(
+    {
+        "keep_alive",
+        "num_ctx",
+        "repeat_penalty",
+        "repetition_penalty",
+        "top_k",
+        "seed",
+        "options",
+        "extra_body",
+        "model_kwargs",
+    }
+)
 
 
 class GenericOpenAIAdapter(OpenAIAdapter):

@@ -87,11 +87,12 @@ TraceReplay integrates seamlessly into Pytest via its built-in plugin:
 import pytest
 from openai import OpenAI
 
+
 # 1. Add the @pytest.mark.trace_replay marker
 @pytest.mark.trace_replay
 def test_customer_support_greeting(tracereplay_patch):
     client = OpenAI()
-    
+
     # 2. Automatically intercept the client
     tracereplay_patch(client)
 
@@ -99,7 +100,7 @@ def test_customer_support_greeting(tracereplay_patch):
         model="gpt-4o",
         messages=[{"role": "user", "content": "How do I track my order?"}],
     )
-    
+
     answer = response.choices[0].message.content
     assert "order" in answer.lower()
 ```
@@ -150,6 +151,7 @@ Decorate your agent's local tool functions to record their inputs and outputs. D
 
 ```python
 from tracereplay import record_tool
+
 
 @record_tool(name="fetch_user_balance")
 def fetch_user_balance(user_id: str) -> float:

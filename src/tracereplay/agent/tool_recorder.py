@@ -16,8 +16,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 @overload
-def record_tool(func: F) -> F:
-    ...
+def record_tool(func: F) -> F: ...
 
 
 @overload
@@ -26,8 +25,7 @@ def record_tool(
     *,
     name: str | None = None,
     ignore_args: list[str] | None = None,
-) -> Callable[[F], F]:
-    ...
+) -> Callable[[F], F]: ...
 
 
 def record_tool(
@@ -153,4 +151,3 @@ def record_tool(
     if func is not None:
         return decorator(func)
     return decorator
-

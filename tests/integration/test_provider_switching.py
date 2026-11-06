@@ -97,9 +97,7 @@ def test_cross_provider_seamless_switching(tmp_path: Path) -> None:
         "id": "msg_switch_test",
         "type": "message",
         "role": "assistant",
-        "content": [
-            {"type": "text", "text": "Claude: Deterministic replay freezes outputs."}
-        ],
+        "content": [{"type": "text", "text": "Claude: Deterministic replay freezes outputs."}],
         "stop_reason": "end_turn",
         "usage": {"input_tokens": 12, "output_tokens": 10},
     }

@@ -21,4 +21,3 @@ class OllamaAdapter(OpenAIAdapter):
     """Adapter for Ollama local models (OpenAI SDK compatible)."""
 
     provider_name: str = "ollama"
-

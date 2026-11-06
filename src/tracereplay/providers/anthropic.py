@@ -83,10 +83,12 @@ class AnthropicAdapter(BaseProviderAdapter):
             if isinstance(msg, dict):
                 normalized_messages.append(msg)
             elif hasattr(msg, "role") and hasattr(msg, "content"):
-                normalized_messages.append({
-                    "role": msg.role,
-                    "content": msg.content,
-                })
+                normalized_messages.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content,
+                    }
+                )
             else:
                 normalized_messages.append({"role": "user", "content": str(msg)})
 
