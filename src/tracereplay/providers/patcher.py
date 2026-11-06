@@ -93,6 +93,74 @@ def patch(client: Any, provider: str | None = None) -> Any:
     """Wrap an AI client with TraceReplay interceptors."""
     adapter = _resolve_adapter(client, provider=provider)
 
+    def _sync_intercept(orig_fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        sess = get_current_session()
+        if sess is not None:
+            sess.check_fork_trigger()
+        if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+            try:
+                return orig_fn(*args, **kwargs)
+            finally:
+                if sess is not None:
+                    sess.notify_llm_call_completed()
+
+        request = adapter.before_request(*args, **kwargs)
+        try:
+            if sess.mode == ReplayMode.RECORD:
+                start = time.perf_counter()
+                raw_response = orig_fn(*args, **kwargs)
+                duration_ms = (time.perf_counter() - start) * 1000.0
+                response_payload = adapter.after_response(raw_response)
+                if sess.recorder:
+                    sess.recorder.record_interaction(
+                        request, response_payload, duration_ms=duration_ms
+                    )
+                return raw_response
+
+            if sess.mode == ReplayMode.REPLAY:
+                if sess.replayer is None:
+                    raise TraceReplayError("No replayer active in session")
+                replayed_payload = sess.replayer.replay_interaction(request)
+                return adapter.build_replayed_response(replayed_payload, request)
+
+            return orig_fn(*args, **kwargs)
+        finally:
+            sess.notify_llm_call_completed()
+
+    async def _async_intercept(orig_fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        sess = get_current_session()
+        if sess is not None:
+            sess.check_fork_trigger()
+        if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+            try:
+                return await orig_fn(*args, **kwargs)
+            finally:
+                if sess is not None:
+                    sess.notify_llm_call_completed()
+
+        request = adapter.before_request(*args, **kwargs)
+        try:
+            if sess.mode == ReplayMode.RECORD:
+                start = time.perf_counter()
+                raw_response = await orig_fn(*args, **kwargs)
+                duration_ms = (time.perf_counter() - start) * 1000.0
+                response_payload = adapter.after_response(raw_response)
+                if sess.recorder:
+                    sess.recorder.record_interaction(
+                        request, response_payload, duration_ms=duration_ms
+                    )
+                return raw_response
+
+            if sess.mode == ReplayMode.REPLAY:
+                if sess.replayer is None:
+                    raise TraceReplayError("No replayer active in session")
+                replayed_payload = await sess.replayer.areplay_interaction(request)
+                return adapter.build_replayed_response(replayed_payload, request)
+
+            return await orig_fn(*args, **kwargs)
+        finally:
+            sess.notify_llm_call_completed()
+
     # 1. Mistral AI (client.chat.complete / client.chat.complete_async)
     if isinstance(adapter, MistralAdapter):
         if not hasattr(client, "chat") or not hasattr(client.chat, "complete"):
@@ -102,48 +170,14 @@ def patch(client: Any, provider: str | None = None) -> Any:
         orig_async_complete = getattr(client.chat, "complete_async", None)
 
         def sync_mistral_create(*args: Any, **kwargs: Any) -> Any:
-            sess = get_current_session()
-            if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                return orig_complete(*args, **kwargs)
-            req = adapter.before_request(*args, **kwargs)
-            if sess.mode == ReplayMode.RECORD:
-                start = time.perf_counter()
-                raw = orig_complete(*args, **kwargs)
-                dur = (time.perf_counter() - start) * 1000.0
-                resp_p = adapter.after_response(raw)
-                if sess.recorder:
-                    sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                return raw
-            if sess.mode == ReplayMode.REPLAY:
-                if sess.replayer is None:
-                    raise TraceReplayError("No replayer active in session")
-                replayed_p = sess.replayer.replay_interaction(req)
-                return adapter.build_replayed_response(replayed_p, req)
-            return orig_complete(*args, **kwargs)
+            return _sync_intercept(orig_complete, *args, **kwargs)
 
         client.chat.complete = sync_mistral_create
 
         if orig_async_complete is not None:
 
             async def async_mistral_create(*args: Any, **kwargs: Any) -> Any:
-                sess = get_current_session()
-                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                    return await orig_async_complete(*args, **kwargs)
-                req = adapter.before_request(*args, **kwargs)
-                if sess.mode == ReplayMode.RECORD:
-                    start = time.perf_counter()
-                    raw = await orig_async_complete(*args, **kwargs)
-                    dur = (time.perf_counter() - start) * 1000.0
-                    resp_p = adapter.after_response(raw)
-                    if sess.recorder:
-                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                    return raw
-                if sess.mode == ReplayMode.REPLAY:
-                    if sess.replayer is None:
-                        raise TraceReplayError("No replayer active in session")
-                    replayed_p = await sess.replayer.areplay_interaction(req)
-                    return adapter.build_replayed_response(replayed_p, req)
-                return await orig_async_complete(*args, **kwargs)
+                return await _async_intercept(orig_async_complete, *args, **kwargs)
 
             client.chat.complete_async = async_mistral_create
 
@@ -168,52 +202,17 @@ def patch(client: Any, provider: str | None = None) -> Any:
         if is_async:
 
             async def async_anthropic_create(*args: Any, **kwargs: Any) -> Any:
-                sess = get_current_session()
-                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                    return await orig_anthropic(*args, **kwargs)
-                req = adapter.before_request(*args, **kwargs)
-                if sess.mode == ReplayMode.RECORD:
-                    start = time.perf_counter()
-                    raw = await orig_anthropic(*args, **kwargs)
-                    dur = (time.perf_counter() - start) * 1000.0
-                    resp_p = adapter.after_response(raw)
-                    if sess.recorder:
-                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                    return raw
-                if sess.mode == ReplayMode.REPLAY:
-                    if sess.replayer is None:
-                        raise TraceReplayError("No replayer active in session")
-                    replayed_p = await sess.replayer.areplay_interaction(req)
-                    return adapter.build_replayed_response(replayed_p, req)
-                return await orig_anthropic(*args, **kwargs)
+                return await _async_intercept(orig_anthropic, *args, **kwargs)
 
             client.messages.create = async_anthropic_create
-            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
         else:
 
             def sync_anthropic_create(*args: Any, **kwargs: Any) -> Any:
-                sess = get_current_session()
-                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                    return orig_anthropic(*args, **kwargs)
-                req = adapter.before_request(*args, **kwargs)
-                if sess.mode == ReplayMode.RECORD:
-                    start = time.perf_counter()
-                    raw = orig_anthropic(*args, **kwargs)
-                    dur = (time.perf_counter() - start) * 1000.0
-                    resp_p = adapter.after_response(raw)
-                    if sess.recorder:
-                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                    return raw
-                if sess.mode == ReplayMode.REPLAY:
-                    if sess.replayer is None:
-                        raise TraceReplayError("No replayer active in session")
-                    replayed_p = sess.replayer.replay_interaction(req)
-                    return adapter.build_replayed_response(replayed_p, req)
-                return orig_anthropic(*args, **kwargs)
+                return _sync_intercept(orig_anthropic, *args, **kwargs)
 
             client.messages.create = sync_anthropic_create
-            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
 
+        handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
         client.unpatch = handle.unpatch
@@ -229,52 +228,17 @@ def patch(client: Any, provider: str | None = None) -> Any:
         if is_async:
 
             async def async_gemini_create(*args: Any, **kwargs: Any) -> Any:
-                sess = get_current_session()
-                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                    return await orig_gemini(*args, **kwargs)
-                req = adapter.before_request(*args, **kwargs)
-                if sess.mode == ReplayMode.RECORD:
-                    start = time.perf_counter()
-                    raw = await orig_gemini(*args, **kwargs)
-                    dur = (time.perf_counter() - start) * 1000.0
-                    resp_p = adapter.after_response(raw)
-                    if sess.recorder:
-                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                    return raw
-                if sess.mode == ReplayMode.REPLAY:
-                    if sess.replayer is None:
-                        raise TraceReplayError("No replayer active in session")
-                    replayed_p = await sess.replayer.areplay_interaction(req)
-                    return adapter.build_replayed_response(replayed_p, req)
-                return await orig_gemini(*args, **kwargs)
+                return await _async_intercept(orig_gemini, *args, **kwargs)
 
             client.generate_content = async_gemini_create
-            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
         else:
 
             def sync_gemini_create(*args: Any, **kwargs: Any) -> Any:
-                sess = get_current_session()
-                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                    return orig_gemini(*args, **kwargs)
-                req = adapter.before_request(*args, **kwargs)
-                if sess.mode == ReplayMode.RECORD:
-                    start = time.perf_counter()
-                    raw = orig_gemini(*args, **kwargs)
-                    dur = (time.perf_counter() - start) * 1000.0
-                    resp_p = adapter.after_response(raw)
-                    if sess.recorder:
-                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
-                    return raw
-                if sess.mode == ReplayMode.REPLAY:
-                    if sess.replayer is None:
-                        raise TraceReplayError("No replayer active in session")
-                    replayed_p = sess.replayer.replay_interaction(req)
-                    return adapter.build_replayed_response(replayed_p, req)
-                return orig_gemini(*args, **kwargs)
+                return _sync_intercept(orig_gemini, *args, **kwargs)
 
             client.generate_content = sync_gemini_create
-            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
 
+        handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
         client.unpatch = handle.unpatch
@@ -293,68 +257,17 @@ def patch(client: Any, provider: str | None = None) -> Any:
     if is_async:
 
         async def async_intercepted_create(*args: Any, **kwargs: Any) -> Any:
-            sess = get_current_session()
-            if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                return await orig_openai(*args, **kwargs)
-
-            request = adapter.before_request(*args, **kwargs)
-
-            if sess.mode == ReplayMode.RECORD:
-                start = time.perf_counter()
-                raw_response = await orig_openai(*args, **kwargs)
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                response_payload = adapter.after_response(raw_response)
-                if sess.recorder:
-                    sess.recorder.record_interaction(
-                        request, response_payload, duration_ms=duration_ms
-                    )
-                return raw_response
-
-            if sess.mode == ReplayMode.REPLAY:
-                if sess.replayer is None:
-                    raise TraceReplayError("No replayer active in session")
-                replayed_payload = await sess.replayer.areplay_interaction(request)
-                return adapter.build_replayed_response(replayed_payload, request)
-
-            return await orig_openai(*args, **kwargs)
+            return await _async_intercept(orig_openai, *args, **kwargs)
 
         client.chat.completions.create = async_intercepted_create
-        handle = PatchHandle(
-            client, lambda: setattr(client.chat.completions, "create", orig_openai)
-        )
     else:
 
         def sync_intercepted_create(*args: Any, **kwargs: Any) -> Any:
-            sess = get_current_session()
-            if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                return orig_openai(*args, **kwargs)
-
-            request = adapter.before_request(*args, **kwargs)
-
-            if sess.mode == ReplayMode.RECORD:
-                start = time.perf_counter()
-                raw_response = orig_openai(*args, **kwargs)
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                response_payload = adapter.after_response(raw_response)
-                if sess.recorder:
-                    sess.recorder.record_interaction(
-                        request, response_payload, duration_ms=duration_ms
-                    )
-                return raw_response
-
-            if sess.mode == ReplayMode.REPLAY:
-                if sess.replayer is None:
-                    raise TraceReplayError("No replayer active in session")
-                replayed_payload = sess.replayer.replay_interaction(request)
-                return adapter.build_replayed_response(replayed_payload, request)
-
-            return orig_openai(*args, **kwargs)
+            return _sync_intercept(orig_openai, *args, **kwargs)
 
         client.chat.completions.create = sync_intercepted_create
-        handle = PatchHandle(
-            client, lambda: setattr(client.chat.completions, "create", orig_openai)
-        )
 
+    handle = PatchHandle(client, lambda: setattr(client.chat.completions, "create", orig_openai))
     client.__enter__ = handle.__enter__
     client.__exit__ = handle.__exit__
     client.unpatch = handle.unpatch

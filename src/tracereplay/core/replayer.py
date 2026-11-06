@@ -9,7 +9,13 @@ from typing import Any
 from tracereplay.config import TraceReplayConfig, get_config
 from tracereplay.exceptions import RequestMismatchError, ToolExecutionError
 from tracereplay.matcher.rules import RequestMatcher
-from tracereplay.models import RequestPayload, ResponsePayload, SessionRecord
+from tracereplay.models import (
+    Interaction,
+    RequestPayload,
+    ResponsePayload,
+    SessionRecord,
+    ToolCallRecord,
+)
 from tracereplay.storage.json_storage import JsonStorageEngine
 
 
@@ -30,6 +36,8 @@ class Replayer:
         self._current_index = 0
         self._current_tool_index = 0
         self._record: SessionRecord | None = None
+        self.replayed_interactions: list[Interaction] = []
+        self.replayed_tool_executions: list[ToolCallRecord] = []
 
     @property
     def record(self) -> SessionRecord:
@@ -59,6 +67,7 @@ class Replayer:
             time.sleep(matched.duration_ms / 1000.0)
 
         self._current_index = matched.index + 1
+        self.replayed_interactions.append(matched)
         return matched.response
 
     async def areplay_interaction(self, request: RequestPayload) -> ResponsePayload:
@@ -82,6 +91,7 @@ class Replayer:
             await asyncio.sleep(matched.duration_ms / 1000.0)
 
         self._current_index = matched.index + 1
+        self.replayed_interactions.append(matched)
         return matched.response
 
     def replay_tool_execution(self, function_name: str, arguments: dict[str, Any]) -> Any:
@@ -128,6 +138,7 @@ class Replayer:
             time.sleep(expected_tool.duration_ms / 1000.0)
 
         self._current_tool_index += 1
+        self.replayed_tool_executions.append(expected_tool)
         if expected_tool.error is not None:
             raise RuntimeError(expected_tool.error)
         return expected_tool.result
@@ -176,6 +187,7 @@ class Replayer:
             await asyncio.sleep(expected_tool.duration_ms / 1000.0)
 
         self._current_tool_index += 1
+        self.replayed_tool_executions.append(expected_tool)
         if expected_tool.error is not None:
             raise RuntimeError(expected_tool.error)
         return expected_tool.result
