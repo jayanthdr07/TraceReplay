@@ -355,9 +355,7 @@ def test_multi_turn_autonomous_agent_workflow(tmp_path: Path) -> None:
     tracker_rep = AgentTracker(agent_name="travel_agent_replay")
     client_rep = MockLLMClient(mode="REPLAY")
     with session("travel_session", mode=ReplayMode.REPLAY, config=cfg) as sess_rep:
-        ans_rep = run_agent_loop(
-            client_rep, "What is the weather in Paris?", sess_rep, tracker_rep
-        )
+        ans_rep = run_agent_loop(client_rep, "What is the weather in Paris?", sess_rep, tracker_rep)
         assert ans_rep == "The weather in Paris is Sunny with a temperature of 24C."
         # Tool call count remains exactly 1 (real tool was NEVER executed in replay mode)
         assert tool_call_count == 1

@@ -335,6 +335,7 @@ def test_end_to_end_plugin_with_patched_client(
     tracereplay_patch: Any,
 ) -> None:
     """Full end-to-end test proving client interception and session recording work together."""
+
     class FakeMsg:
         content: str = "AI response: Order #123 is shipped."
 
@@ -363,4 +364,3 @@ def test_end_to_end_plugin_with_patched_client(
     assert response.choices[0].message.content == "AI response: Order #123 is shipped."
     if tracereplay_session.recorder:
         assert len(tracereplay_session.recorder.interactions) >= 1
-
