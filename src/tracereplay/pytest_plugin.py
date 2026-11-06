@@ -62,7 +62,9 @@ def pytest_configure(config: pytest.Config) -> None:
     """Register the custom trace_replay marker with pytest."""
     config.addinivalue_line(
         "markers",
-        "trace_replay(fixture=None, mode=None, dir=None): Record or replay LLM interactions.",
+        "trace_replay(fixture=None, mode=None, dir=None, fork_at_step=None, fork_at_tool=None, "
+        "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None): "
+        "Record, replay, or time-travel fork LLM interactions and tool executions.",
     )
 
 
@@ -141,10 +143,24 @@ def create_tracereplay_session(
 
     session_config = config.model_copy(update={"fixtures_dir": target_dir, "mode": mode})
 
+    fork_at_step = marker.kwargs.get("fork_at_step") if marker else None
+    fork_at_tool = marker.kwargs.get("fork_at_tool") if marker else None
+    fork_at_total_step = marker.kwargs.get("fork_at_total_step") if marker else None
+    fork_session_name = marker.kwargs.get("fork_session_name") if marker else None
+    raw_fork_to_mode = (
+        marker.kwargs.get("fork_to_mode", ReplayMode.RECORD) if marker else ReplayMode.RECORD
+    )
+    fork_to_mode = ReplayMode(raw_fork_to_mode) if raw_fork_to_mode else ReplayMode.RECORD
+
     sess = TraceReplaySession(
         name=fixture_name,
         mode=mode,
         config=session_config,
+        fork_at_step=fork_at_step,
+        fork_at_tool=fork_at_tool,
+        fork_at_total_step=fork_at_total_step,
+        fork_session_name=fork_session_name,
+        fork_to_mode=fork_to_mode,
     )
 
     with sess:
