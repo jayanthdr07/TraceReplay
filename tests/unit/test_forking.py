@@ -553,7 +553,7 @@ def test_pytest_marker_fork_configuration(tmp_path: Path) -> None:
 
     # Create mock pytest node and request
     mock_marker = MagicMock()
-    mock_marker.args = []
+    mock_marker.args = ()
     mock_marker.kwargs = {
         "fixture": "marker_fixture",
         "fork_at_step": 1,

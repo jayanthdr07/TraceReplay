@@ -126,3 +126,85 @@ class RecordingError(TraceReplayError):
 
 class ToolExecutionError(TraceReplayError):
     """Raised when a tool execution record fails or tool outputs cannot be replayed."""
+
+
+# ============================================================================
+# Chaos Engineering Exceptions
+# ============================================================================
+
+
+class ChaosError(TraceReplayError):
+    """Base exception for all faults injected by the TraceReplay AI Chaos Engine."""
+
+
+class ChaosRateLimitError(ChaosError):
+    """Raised when a 429 Rate Limit fault is injected."""
+
+    def __init__(
+        self,
+        message: str = "Rate limit exceeded (429 Too Many Requests)",
+        retry_after: float | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        extra["status_code"] = 429
+        if retry_after is not None:
+            extra["retry_after"] = retry_after
+        super().__init__(message, details=extra)
+        self.status_code = 429
+        self.retry_after = retry_after
+
+
+class ChaosTimeoutError(ChaosError):
+    """Raised when a simulated network timeout fault is injected."""
+
+    def __init__(
+        self,
+        message: str = "Request timed out",
+        duration_seconds: float = 0.0,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        if duration_seconds > 0:
+            extra["duration_seconds"] = duration_seconds
+        super().__init__(message, details=extra)
+        self.duration_seconds = duration_seconds
+
+
+class ChaosServerError(ChaosError):
+    """Raised when a simulated HTTP 5xx server error is injected."""
+
+    def __init__(
+        self,
+        message: str = "Internal server error (500)",
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        extra["status_code"] = status_code
+        super().__init__(message, details=extra)
+        self.status_code = status_code
+
+
+class ChaosContextLengthError(ChaosError):
+    """Raised when a simulated context window limit exceeded fault is injected."""
+
+    def __init__(
+        self,
+        message: str = "Context window length exceeded",
+        max_tokens: int = 8192,
+        actual_tokens: int = 9500,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        extra["status_code"] = 400
+        extra["max_tokens"] = max_tokens
+        extra["actual_tokens"] = actual_tokens
+        super().__init__(message, details=extra)
+        self.status_code = 400
+        self.max_tokens = max_tokens
+        self.actual_tokens = actual_tokens
+
+
+class ChaosMalformedOutputError(ChaosError):
+    """Raised when an injected malformed output cannot be processed by the recipient."""
