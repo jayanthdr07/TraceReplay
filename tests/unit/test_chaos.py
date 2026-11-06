@@ -24,11 +24,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-try:
-    import openai
-except ImportError:
-    openai = None  # type: ignore[assignment]
-
 import pytest
 
 from tracereplay import chaos
@@ -45,6 +40,11 @@ from tracereplay.exceptions import (
 from tracereplay.models import ReplayMode
 from tracereplay.providers.patcher import patch, unpatch
 from tracereplay.pytest_plugin import create_tracereplay_session
+
+# Optional SDK import
+openai: Any = None
+with contextlib.suppress(ImportError):
+    import openai
 
 # Helper exception tuple mappings
 if openai is not None:
