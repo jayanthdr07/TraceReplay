@@ -77,7 +77,7 @@ def main() -> None:
         rec_results = run_multi_model_pipeline(sess_rec)
 
     for prov, ans in rec_results.items():
-        print(f"  [{prov.upper()}] -> \"{ans}\"")
+        print(f'  [{prov.upper()}] -> "{ans}"')
 
     # 2. REPLAY MODE
     print("\n[Phase 2] Deterministically replaying all 4 providers (Zero API calls)...")
@@ -85,7 +85,7 @@ def main() -> None:
         rep_results = run_multi_model_pipeline(sess_rep)
 
     for prov, ans in rep_results.items():
-        print(f"  [{prov.upper()}] Replayed -> \"{ans}\"")
+        print(f'  [{prov.upper()}] Replayed -> "{ans}"')
 
     assert rec_results == rep_results, "Replayed answers must match recorded answers"
 

@@ -139,9 +139,7 @@ def create_tracereplay_session(
     if marker and "mode" in marker.kwargs and marker.kwargs["mode"]:
         mode = ReplayMode(str(marker.kwargs["mode"]).lower())
 
-    session_config = config.model_copy(
-        update={"fixtures_dir": target_dir, "mode": mode}
-    )
+    session_config = config.model_copy(update={"fixtures_dir": target_dir, "mode": mode})
 
     sess = TraceReplaySession(
         name=fixture_name,

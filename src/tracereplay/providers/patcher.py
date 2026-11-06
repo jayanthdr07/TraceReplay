@@ -67,12 +67,7 @@ def _resolve_adapter(client: Any, provider: str | None = None) -> BaseProviderAd
         or ":11434" in base_url
     ):
         return OllamaAdapter()
-    if (
-        prov_hint == "generic"
-        or ":8000" in base_url
-        or ":1234" in base_url
-        or ":8080" in base_url
-    ):
+    if prov_hint == "generic" or ":8000" in base_url or ":1234" in base_url or ":8080" in base_url:
         return GenericOpenAIAdapter(provider_alias=prov_hint or "generic")
 
     # Structural fallback based on method signatures
@@ -193,9 +188,7 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return await orig_anthropic(*args, **kwargs)
 
             client.messages.create = async_anthropic_create
-            handle = PatchHandle(
-                client, lambda: setattr(client.messages, "create", orig_anthropic)
-            )
+            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
         else:
 
             def sync_anthropic_create(*args: Any, **kwargs: Any) -> Any:
@@ -219,9 +212,7 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return orig_anthropic(*args, **kwargs)
 
             client.messages.create = sync_anthropic_create
-            handle = PatchHandle(
-                client, lambda: setattr(client.messages, "create", orig_anthropic)
-            )
+            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
 
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
@@ -258,9 +249,7 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return await orig_gemini(*args, **kwargs)
 
             client.generate_content = async_gemini_create
-            handle = PatchHandle(
-                client, lambda: setattr(client, "generate_content", orig_gemini)
-            )
+            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
         else:
 
             def sync_gemini_create(*args: Any, **kwargs: Any) -> Any:
@@ -284,9 +273,7 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return orig_gemini(*args, **kwargs)
 
             client.generate_content = sync_gemini_create
-            handle = PatchHandle(
-                client, lambda: setattr(client, "generate_content", orig_gemini)
-            )
+            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
 
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
