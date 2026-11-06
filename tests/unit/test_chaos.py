@@ -17,6 +17,7 @@ Verifies:
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import time
 from collections.abc import Callable
@@ -41,10 +42,10 @@ from tracereplay.models import ReplayMode
 from tracereplay.providers.patcher import patch, unpatch
 from tracereplay.pytest_plugin import create_tracereplay_session
 
-# Optional SDK import
+# Optional SDK import via importlib to ensure compatibility across all test environments
 openai: Any = None
-with contextlib.suppress(ImportError):
-    import openai
+if importlib.util.find_spec("openai") is not None:
+    openai = importlib.import_module("openai")
 
 # Helper exception tuple mappings
 if openai is not None:
@@ -450,7 +451,7 @@ def test_pytest_marker_chaos_integration(tmp_path: Path) -> None:
 
     chaos_list = [chaos.rate_limit(step=0)]
     mock_marker = MagicMock()
-    mock_marker.args = []
+    mock_marker.args = ()
     mock_marker.kwargs = {
         "fixture": "marker_chaos_fixture",
         "mode": "replay",
