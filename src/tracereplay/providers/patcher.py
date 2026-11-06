@@ -98,68 +98,90 @@ def patch(client: Any, provider: str | None = None) -> Any:
         if sess is not None:
             sess.check_fork_trigger()
         if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-            try:
-                return orig_fn(*args, **kwargs)
-            finally:
-                if sess is not None:
-                    sess.notify_llm_call_completed()
+            res = orig_fn(*args, **kwargs)
+            if sess is not None:
+                sess.notify_llm_call_completed()
+            return res
 
         request = adapter.before_request(*args, **kwargs)
-        try:
-            if sess.mode == ReplayMode.RECORD:
-                start = time.perf_counter()
-                raw_response = orig_fn(*args, **kwargs)
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                response_payload = adapter.after_response(raw_response)
-                if sess.recorder:
-                    sess.recorder.record_interaction(
-                        request, response_payload, duration_ms=duration_ms
-                    )
-                return raw_response
 
-            if sess.mode == ReplayMode.REPLAY:
-                if sess.replayer is None:
-                    raise TraceReplayError("No replayer active in session")
-                replayed_payload = sess.replayer.replay_interaction(request)
-                return adapter.build_replayed_response(replayed_payload, request)
+        # AI Chaos Engineering check
+        if sess is not None and sess.chaos_engine is not None:
+            chaos_response = sess.chaos_engine.evaluate_pre_request(
+                adapter=adapter,
+                request=request,
+                step_index=sess._llm_step_count,
+            )
+            if chaos_response is not None:
+                sess.notify_llm_call_completed()
+                return chaos_response
 
-            return orig_fn(*args, **kwargs)
-        finally:
+        if sess.mode == ReplayMode.RECORD:
+            start = time.perf_counter()
+            raw_response = orig_fn(*args, **kwargs)
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            response_payload = adapter.after_response(raw_response)
+            if sess.recorder:
+                sess.recorder.record_interaction(request, response_payload, duration_ms=duration_ms)
             sess.notify_llm_call_completed()
+            return raw_response
+
+        if sess.mode == ReplayMode.REPLAY:
+            if sess.replayer is None:
+                raise TraceReplayError("No replayer active in session")
+            replayed_payload = sess.replayer.replay_interaction(request)
+            res = adapter.build_replayed_response(replayed_payload, request)
+            sess.notify_llm_call_completed()
+            return res
+
+        res = orig_fn(*args, **kwargs)
+        sess.notify_llm_call_completed()
+        return res
 
     async def _async_intercept(orig_fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         sess = get_current_session()
         if sess is not None:
             sess.check_fork_trigger()
         if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-            try:
-                return await orig_fn(*args, **kwargs)
-            finally:
-                if sess is not None:
-                    sess.notify_llm_call_completed()
+            res = await orig_fn(*args, **kwargs)
+            if sess is not None:
+                sess.notify_llm_call_completed()
+            return res
 
         request = adapter.before_request(*args, **kwargs)
-        try:
-            if sess.mode == ReplayMode.RECORD:
-                start = time.perf_counter()
-                raw_response = await orig_fn(*args, **kwargs)
-                duration_ms = (time.perf_counter() - start) * 1000.0
-                response_payload = adapter.after_response(raw_response)
-                if sess.recorder:
-                    sess.recorder.record_interaction(
-                        request, response_payload, duration_ms=duration_ms
-                    )
-                return raw_response
 
-            if sess.mode == ReplayMode.REPLAY:
-                if sess.replayer is None:
-                    raise TraceReplayError("No replayer active in session")
-                replayed_payload = await sess.replayer.areplay_interaction(request)
-                return adapter.build_replayed_response(replayed_payload, request)
+        # AI Chaos Engineering check
+        if sess is not None and sess.chaos_engine is not None:
+            chaos_response = await sess.chaos_engine.aevaluate_pre_request(
+                adapter=adapter,
+                request=request,
+                step_index=sess._llm_step_count,
+            )
+            if chaos_response is not None:
+                sess.notify_llm_call_completed()
+                return chaos_response
 
-            return await orig_fn(*args, **kwargs)
-        finally:
+        if sess.mode == ReplayMode.RECORD:
+            start = time.perf_counter()
+            raw_response = await orig_fn(*args, **kwargs)
+            duration_ms = (time.perf_counter() - start) * 1000.0
+            response_payload = adapter.after_response(raw_response)
+            if sess.recorder:
+                sess.recorder.record_interaction(request, response_payload, duration_ms=duration_ms)
             sess.notify_llm_call_completed()
+            return raw_response
+
+        if sess.mode == ReplayMode.REPLAY:
+            if sess.replayer is None:
+                raise TraceReplayError("No replayer active in session")
+            replayed_payload = await sess.replayer.areplay_interaction(request)
+            res = adapter.build_replayed_response(replayed_payload, request)
+            sess.notify_llm_call_completed()
+            return res
+
+        res = await orig_fn(*args, **kwargs)
+        sess.notify_llm_call_completed()
+        return res
 
     # 1. Mistral AI (client.chat.complete / client.chat.complete_async)
     if isinstance(adapter, MistralAdapter):

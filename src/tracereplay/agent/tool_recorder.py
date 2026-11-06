@@ -75,42 +75,52 @@ def record_tool(
                 sess = get_current_session()
                 if sess is not None:
                     sess.check_fork_trigger(tool_name=tool_name)
-                try:
-                    if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                        return await fn(*args, **kwargs)
-
-                    call_args = _extract_args(args, kwargs)
-
-                    if sess.mode == ReplayMode.REPLAY:
-                        return await sess.areplay_tool_call(tool_name, call_args)
-
-                    # RECORD mode
-                    start = time.perf_counter()
-                    try:
-                        res = await fn(*args, **kwargs)
-                        duration_ms = (time.perf_counter() - start) * 1000.0
-                        record = ToolCallRecord(
-                            function_name=tool_name,
-                            arguments=call_args,
-                            result=res,
-                            duration_ms=duration_ms,
-                        )
-                        sess.record_tool_call(record)
-                        return res
-                    except Exception as err:
-                        duration_ms = (time.perf_counter() - start) * 1000.0
-                        record = ToolCallRecord(
-                            function_name=tool_name,
-                            arguments=call_args,
-                            result=None,
-                            duration_ms=duration_ms,
-                            error=str(err),
-                        )
-                        sess.record_tool_call(record)
-                        raise
-                finally:
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    res = await fn(*args, **kwargs)
                     if sess is not None:
                         sess.notify_tool_call_completed()
+                    return res
+
+                call_args = _extract_args(args, kwargs)
+
+                # AI Chaos Engineering check
+                if sess is not None and sess.chaos_engine is not None:
+                    await sess.chaos_engine.aevaluate_tool_call(
+                        tool_name=tool_name,
+                        arguments=call_args,
+                        step_index=sess._tool_step_count,
+                    )
+
+                if sess.mode == ReplayMode.REPLAY:
+                    res = await sess.areplay_tool_call(tool_name, call_args)
+                    sess.notify_tool_call_completed()
+                    return res
+
+                # RECORD mode
+                start = time.perf_counter()
+                try:
+                    res = await fn(*args, **kwargs)
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    record = ToolCallRecord(
+                        function_name=tool_name,
+                        arguments=call_args,
+                        result=res,
+                        duration_ms=duration_ms,
+                    )
+                    sess.record_tool_call(record)
+                    sess.notify_tool_call_completed()
+                    return res
+                except Exception as err:
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    record = ToolCallRecord(
+                        function_name=tool_name,
+                        arguments=call_args,
+                        result=None,
+                        duration_ms=duration_ms,
+                        error=str(err),
+                    )
+                    sess.record_tool_call(record)
+                    raise
 
             return cast(F, async_wrapper)
 
@@ -121,42 +131,52 @@ def record_tool(
                 sess = get_current_session()
                 if sess is not None:
                     sess.check_fork_trigger(tool_name=tool_name)
-                try:
-                    if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
-                        return fn(*args, **kwargs)
-
-                    call_args = _extract_args(args, kwargs)
-
-                    if sess.mode == ReplayMode.REPLAY:
-                        return sess.replay_tool_call(tool_name, call_args)
-
-                    # RECORD mode
-                    start = time.perf_counter()
-                    try:
-                        res = fn(*args, **kwargs)
-                        duration_ms = (time.perf_counter() - start) * 1000.0
-                        record = ToolCallRecord(
-                            function_name=tool_name,
-                            arguments=call_args,
-                            result=res,
-                            duration_ms=duration_ms,
-                        )
-                        sess.record_tool_call(record)
-                        return res
-                    except Exception as err:
-                        duration_ms = (time.perf_counter() - start) * 1000.0
-                        record = ToolCallRecord(
-                            function_name=tool_name,
-                            arguments=call_args,
-                            result=None,
-                            duration_ms=duration_ms,
-                            error=str(err),
-                        )
-                        sess.record_tool_call(record)
-                        raise
-                finally:
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    res = fn(*args, **kwargs)
                     if sess is not None:
                         sess.notify_tool_call_completed()
+                    return res
+
+                call_args = _extract_args(args, kwargs)
+
+                # AI Chaos Engineering check
+                if sess is not None and sess.chaos_engine is not None:
+                    sess.chaos_engine.evaluate_tool_call(
+                        tool_name=tool_name,
+                        arguments=call_args,
+                        step_index=sess._tool_step_count,
+                    )
+
+                if sess.mode == ReplayMode.REPLAY:
+                    res = sess.replay_tool_call(tool_name, call_args)
+                    sess.notify_tool_call_completed()
+                    return res
+
+                # RECORD mode
+                start = time.perf_counter()
+                try:
+                    res = fn(*args, **kwargs)
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    record = ToolCallRecord(
+                        function_name=tool_name,
+                        arguments=call_args,
+                        result=res,
+                        duration_ms=duration_ms,
+                    )
+                    sess.record_tool_call(record)
+                    sess.notify_tool_call_completed()
+                    return res
+                except Exception as err:
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    record = ToolCallRecord(
+                        function_name=tool_name,
+                        arguments=call_args,
+                        result=None,
+                        duration_ms=duration_ms,
+                        error=str(err),
+                    )
+                    sess.record_tool_call(record)
+                    raise
 
             return cast(F, sync_wrapper)
 

@@ -63,8 +63,8 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "trace_replay(fixture=None, mode=None, dir=None, fork_at_step=None, fork_at_tool=None, "
-        "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None): "
-        "Record, replay, or time-travel fork LLM interactions and tool executions.",
+        "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None, chaos=None): "
+        "Record, replay, time-travel fork, or inject AI chaos faults into test executions.",
     )
 
 
@@ -151,6 +151,7 @@ def create_tracereplay_session(
         marker.kwargs.get("fork_to_mode", ReplayMode.RECORD) if marker else ReplayMode.RECORD
     )
     fork_to_mode = ReplayMode(raw_fork_to_mode) if raw_fork_to_mode else ReplayMode.RECORD
+    chaos_param = marker.kwargs.get("chaos") if marker else None
 
     sess = TraceReplaySession(
         name=fixture_name,
@@ -161,6 +162,7 @@ def create_tracereplay_session(
         fork_at_total_step=fork_at_total_step,
         fork_session_name=fork_session_name,
         fork_to_mode=fork_to_mode,
+        chaos=chaos_param,
     )
 
     with sess:

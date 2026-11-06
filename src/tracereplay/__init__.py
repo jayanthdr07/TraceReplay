@@ -6,7 +6,9 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
+from tracereplay import chaos
 from tracereplay.agent import AgentStep, AgentStepType, AgentTracker, record_tool
+from tracereplay.chaos import ChaosConfig, ChaosEngine, Fault, FaultType
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
 from tracereplay.core import (
     Recorder,
@@ -16,6 +18,12 @@ from tracereplay.core import (
     session,
 )
 from tracereplay.exceptions import (
+    ChaosContextLengthError,
+    ChaosError,
+    ChaosMalformedOutputError,
+    ChaosRateLimitError,
+    ChaosServerError,
+    ChaosTimeoutError,
     ConfigurationError,
     FixtureNotFoundError,
     InvalidFixtureError,
@@ -120,6 +128,18 @@ __all__ = [
     "SequenceMismatchError",
     "RecordingError",
     "ToolExecutionError",
+    "ChaosError",
+    "ChaosRateLimitError",
+    "ChaosTimeoutError",
+    "ChaosServerError",
+    "ChaosContextLengthError",
+    "ChaosMalformedOutputError",
+    # Chaos Engineering
+    "chaos",
+    "ChaosConfig",
+    "ChaosEngine",
+    "Fault",
+    "FaultType",
     # Storage & Sanitizer
     "Sanitizer",
     "sanitize_data",

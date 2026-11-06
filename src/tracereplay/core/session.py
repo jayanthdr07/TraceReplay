@@ -6,6 +6,8 @@ import contextvars
 from collections.abc import Callable
 from typing import Any
 
+from tracereplay.chaos.engine import ChaosEngine
+from tracereplay.chaos.models import ChaosConfig, Fault
 from tracereplay.config import TraceReplayConfig, get_config
 from tracereplay.core.recorder import Recorder
 from tracereplay.core.replayer import Replayer
@@ -40,6 +42,7 @@ class TraceReplaySession:
         fork_at_total_step: int | None = None,
         fork_session_name: str | None = None,
         fork_to_mode: ReplayMode | str = ReplayMode.RECORD,
+        chaos: ChaosConfig | list[Fault] | None = None,
     ) -> None:
         self.name = name
         self.config = config or get_config()
@@ -57,6 +60,18 @@ class TraceReplaySession:
         self.fork_at_total_step = fork_at_total_step
         self.fork_session_name = fork_session_name
         self.fork_to_mode = ReplayMode(fork_to_mode)
+
+        # AI Chaos Engineering
+        self.chaos_config: ChaosConfig | None = None
+        self.chaos_engine: ChaosEngine | None = None
+        if chaos is not None:
+            if isinstance(chaos, ChaosConfig):
+                self.chaos_config = chaos
+            elif isinstance(chaos, list):
+                self.chaos_config = ChaosConfig(faults=chaos)
+            else:
+                self.chaos_config = ChaosConfig()
+            self.chaos_engine = ChaosEngine(self.chaos_config)
 
         self._is_forked: bool = False
         self._llm_step_count: int = 0
@@ -275,6 +290,7 @@ def session(
     fork_at_total_step: int | None = None,
     fork_session_name: str | None = None,
     fork_to_mode: ReplayMode | str = ReplayMode.RECORD,
+    chaos: ChaosConfig | list[Fault] | None = None,
 ) -> TraceReplaySession:
     """Convenience context manager to start a TraceReplay session."""
     return TraceReplaySession(
@@ -289,4 +305,5 @@ def session(
         fork_at_total_step=fork_at_total_step,
         fork_session_name=fork_session_name,
         fork_to_mode=fork_to_mode,
+        chaos=chaos,
     )
