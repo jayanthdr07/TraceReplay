@@ -87,4 +87,3 @@ class ChaosConfig(BaseModel):
     timeout_probability: float = Field(default=0.0, ge=0.0, le=1.0)
     latency_jitter_range_ms: tuple[float, float] | None = None
     seed: int | None = None
-

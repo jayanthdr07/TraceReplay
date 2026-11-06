@@ -77,6 +77,9 @@ packages = ["src/tracereplay"]
 line-length = 100
 target-version = "py310"
 
+[tool.ruff.format]
+line-ending = "lf"
+
 [tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
