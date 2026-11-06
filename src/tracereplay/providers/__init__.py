@@ -14,11 +14,17 @@ from tracereplay.providers.gemini import (
     GeminiAdapter,
     GeminiCandidate,
     GeminiContent,
+    GeminiFunctionCall,
     GeminiGenerateContentResponse,
     GeminiPart,
     GeminiUsageMetadata,
 )
+from tracereplay.providers.generic import GenericOpenAIAdapter
 from tracereplay.providers.groq import DeepSeekAdapter, GroqAdapter, OllamaAdapter
+from tracereplay.providers.mistral import (
+    MistralAdapter,
+    MistralChatCompletionResponse,
+)
 from tracereplay.providers.openai import (
     ChatCompletionResponse,
     ChoiceObject,
@@ -36,17 +42,21 @@ __all__ = [
     "PatchHandle",
     "patch",
     "unpatch",
-    # OpenAI & Groq & DeepSeek & Ollama
+    # OpenAI & Groq & DeepSeek & Ollama & Generic
     "OpenAIAdapter",
     "GroqAdapter",
     "DeepSeekAdapter",
     "OllamaAdapter",
+    "GenericOpenAIAdapter",
     "ChatCompletionResponse",
     "ChoiceObject",
     "FunctionCallObject",
     "MessageObject",
     "ToolCallObject",
     "UsageObject",
+    # Mistral AI
+    "MistralAdapter",
+    "MistralChatCompletionResponse",
     # Anthropic Claude
     "AnthropicAdapter",
     "AnthropicMessageResponse",
@@ -58,6 +68,7 @@ __all__ = [
     "GeminiGenerateContentResponse",
     "GeminiCandidate",
     "GeminiContent",
+    "GeminiFunctionCall",
     "GeminiPart",
     "GeminiUsageMetadata",
 ]

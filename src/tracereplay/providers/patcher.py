@@ -13,7 +13,9 @@ from tracereplay.models import ReplayMode
 from tracereplay.providers.anthropic import AnthropicAdapter
 from tracereplay.providers.base import BaseProviderAdapter
 from tracereplay.providers.gemini import GeminiAdapter
+from tracereplay.providers.generic import GenericOpenAIAdapter
 from tracereplay.providers.groq import DeepSeekAdapter, GroqAdapter, OllamaAdapter
+from tracereplay.providers.mistral import MistralAdapter
 from tracereplay.providers.openai import OpenAIAdapter
 
 
@@ -44,7 +46,12 @@ def _resolve_adapter(client: Any, provider: str | None = None) -> BaseProviderAd
     prov_hint = (provider or "").lower().strip()
     class_name = client.__class__.__name__.lower()
     module_name = getattr(client.__class__, "__module__", "").lower()
+    base_url = str(getattr(client, "base_url", "")).lower()
 
+    if prov_hint == "openai" or "openai" in class_name or "openai" in module_name:
+        return OpenAIAdapter()
+    if prov_hint == "mistral" or "mistral" in class_name or "mistral" in module_name:
+        return MistralAdapter()
     if prov_hint == "anthropic" or "anthropic" in class_name or "anthropic" in module_name:
         return AnthropicAdapter()
     if prov_hint == "gemini" or "gemini" in class_name or "google" in module_name:
@@ -53,28 +60,110 @@ def _resolve_adapter(client: Any, provider: str | None = None) -> BaseProviderAd
         return GroqAdapter()
     if prov_hint == "deepseek" or "deepseek" in class_name or "deepseek" in module_name:
         return DeepSeekAdapter()
-    if prov_hint == "ollama" or "ollama" in class_name or "ollama" in module_name:
+    if (
+        prov_hint == "ollama"
+        or "ollama" in class_name
+        or "ollama" in module_name
+        or ":11434" in base_url
+    ):
         return OllamaAdapter()
+    if (
+        prov_hint == "generic"
+        or ":8000" in base_url
+        or ":1234" in base_url
+        or ":8080" in base_url
+    ):
+        return GenericOpenAIAdapter(provider_alias=prov_hint or "generic")
 
     # Structural fallback based on method signatures
+    if hasattr(client, "chat") and hasattr(client.chat, "complete"):
+        return MistralAdapter()
     if hasattr(client, "messages") and hasattr(client.messages, "create"):
         return AnthropicAdapter()
     if hasattr(client, "generate_content"):
         return GeminiAdapter()
     if hasattr(client, "chat") and hasattr(client.chat, "completions"):
+        if prov_hint in {"generic", "vllm", "localai", "lmstudio"}:
+            return GenericOpenAIAdapter(provider_alias=prov_hint)
         return OpenAIAdapter()
 
     raise TraceReplayError(
         f"Unable to auto-detect provider for client '{type(client).__name__}'. "
-        "Pass provider='openai' | 'anthropic' | 'gemini' | 'groq' | 'deepseek' | 'ollama'."
+        "Pass provider='openai' | 'anthropic' | 'gemini' | 'groq' | "
+        "'mistral' | 'generic' | 'ollama'."
     )
 
 
 def patch(client: Any, provider: str | None = None) -> Any:
-    """Wrap an AI client (OpenAI, Claude, Gemini, Groq, DeepSeek, Ollama) with interceptors."""
+    """Wrap an AI client with TraceReplay interceptors."""
     adapter = _resolve_adapter(client, provider=provider)
 
-    # 1. Anthropic Claude (client.messages.create)
+    # 1. Mistral AI (client.chat.complete / client.chat.complete_async)
+    if isinstance(adapter, MistralAdapter):
+        if not hasattr(client, "chat") or not hasattr(client.chat, "complete"):
+            raise TraceReplayError("Mistral client must have client.chat.complete")
+
+        orig_complete = client.chat.complete
+        orig_async_complete = getattr(client.chat, "complete_async", None)
+
+        def sync_mistral_create(*args: Any, **kwargs: Any) -> Any:
+            sess = get_current_session()
+            if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                return orig_complete(*args, **kwargs)
+            req = adapter.before_request(*args, **kwargs)
+            if sess.mode == ReplayMode.RECORD:
+                start = time.perf_counter()
+                raw = orig_complete(*args, **kwargs)
+                dur = (time.perf_counter() - start) * 1000.0
+                resp_p = adapter.after_response(raw)
+                if sess.recorder:
+                    sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                return raw
+            if sess.mode == ReplayMode.REPLAY:
+                if sess.replayer is None:
+                    raise TraceReplayError("No replayer active in session")
+                replayed_p = sess.replayer.replay_interaction(req)
+                return adapter.build_replayed_response(replayed_p, req)
+            return orig_complete(*args, **kwargs)
+
+        client.chat.complete = sync_mistral_create
+
+        if orig_async_complete is not None:
+
+            async def async_mistral_create(*args: Any, **kwargs: Any) -> Any:
+                sess = get_current_session()
+                if sess is None or sess.mode == ReplayMode.PASSTHROUGH:
+                    return await orig_async_complete(*args, **kwargs)
+                req = adapter.before_request(*args, **kwargs)
+                if sess.mode == ReplayMode.RECORD:
+                    start = time.perf_counter()
+                    raw = await orig_async_complete(*args, **kwargs)
+                    dur = (time.perf_counter() - start) * 1000.0
+                    resp_p = adapter.after_response(raw)
+                    if sess.recorder:
+                        sess.recorder.record_interaction(req, resp_p, duration_ms=dur)
+                    return raw
+                if sess.mode == ReplayMode.REPLAY:
+                    if sess.replayer is None:
+                        raise TraceReplayError("No replayer active in session")
+                    replayed_p = await sess.replayer.areplay_interaction(req)
+                    return adapter.build_replayed_response(replayed_p, req)
+                return await orig_async_complete(*args, **kwargs)
+
+            client.chat.complete_async = async_mistral_create
+
+        def restore_mistral() -> None:
+            client.chat.complete = orig_complete
+            if orig_async_complete is not None:
+                client.chat.complete_async = orig_async_complete
+
+        handle = PatchHandle(client, restore_mistral)
+        client.__enter__ = handle.__enter__
+        client.__exit__ = handle.__exit__
+        client.unpatch = handle.unpatch
+        return client
+
+    # 2. Anthropic Claude (client.messages.create)
     if isinstance(adapter, AnthropicAdapter):
         if not hasattr(client, "messages") or not hasattr(client.messages, "create"):
             raise TraceReplayError("Anthropic client must have client.messages.create")
@@ -104,7 +193,9 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return await orig_anthropic(*args, **kwargs)
 
             client.messages.create = async_anthropic_create
-            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
+            handle = PatchHandle(
+                client, lambda: setattr(client.messages, "create", orig_anthropic)
+            )
         else:
 
             def sync_anthropic_create(*args: Any, **kwargs: Any) -> Any:
@@ -128,14 +219,16 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return orig_anthropic(*args, **kwargs)
 
             client.messages.create = sync_anthropic_create
-            handle = PatchHandle(client, lambda: setattr(client.messages, "create", orig_anthropic))
+            handle = PatchHandle(
+                client, lambda: setattr(client.messages, "create", orig_anthropic)
+            )
 
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
         client.unpatch = handle.unpatch
         return client
 
-    # 2. Google Gemini (model.generate_content)
+    # 3. Google Gemini (model.generate_content)
     if isinstance(adapter, GeminiAdapter):
         if not hasattr(client, "generate_content"):
             raise TraceReplayError("Gemini model/client must have client.generate_content")
@@ -165,7 +258,9 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return await orig_gemini(*args, **kwargs)
 
             client.generate_content = async_gemini_create
-            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
+            handle = PatchHandle(
+                client, lambda: setattr(client, "generate_content", orig_gemini)
+            )
         else:
 
             def sync_gemini_create(*args: Any, **kwargs: Any) -> Any:
@@ -189,18 +284,20 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 return orig_gemini(*args, **kwargs)
 
             client.generate_content = sync_gemini_create
-            handle = PatchHandle(client, lambda: setattr(client, "generate_content", orig_gemini))
+            handle = PatchHandle(
+                client, lambda: setattr(client, "generate_content", orig_gemini)
+            )
 
         client.__enter__ = handle.__enter__
         client.__exit__ = handle.__exit__
         client.unpatch = handle.unpatch
         return client
 
-    # 3. OpenAI / Groq / DeepSeek / Ollama (client.chat.completions.create)
+    # 4. OpenAI / Groq / DeepSeek / Ollama / Generic (client.chat.completions.create)
     if not hasattr(client, "chat") or not hasattr(client.chat, "completions"):
         raise TraceReplayError(
             "Target client does not have client.chat.completions.create. "
-            "Ensure you pass an instantiated OpenAI, Groq, DeepSeek, or Ollama client."
+            "Ensure you pass an instantiated OpenAI, Groq, DeepSeek, Ollama, or Generic client."
         )
 
     orig_openai = client.chat.completions.create
