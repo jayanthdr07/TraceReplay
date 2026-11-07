@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tracereplay"
-version = "0.1.0"
+version = "0.1.1"
 description = "Record once. Replay reliably. Test, inspect, and debug AI applications with confidence."
 readme = "README.md"
 requires-python = ">=3.10"
