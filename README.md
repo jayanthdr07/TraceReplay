@@ -1,12 +1,19 @@
-# TraceReplay
+<pre align="center">
+  _____                     ____            _             
+ |_   _| __ __ _  ___ ___  |  _ \ ___ _ __ | | __ _ _   _ 
+   | || '__/ _` |/ __/ _ \ | |_) / _ \ '_ \| |/ _` | | | |
+   | || | | (_| | (_|  __/ |  _ <  __/ |_) | | (_| | |_| |
+   |_||_|  \__,_|\___\___| |_| \_\___| .__/|_|\__,_|\__, |
+                                     |_|            |___/ 
+</pre>
 
 <p align="center">
   <strong>Record once. Replay reliably. Deterministic testing, AI chaos engineering, and cost guardrails for LLM applications and autonomous AI agents.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml"><img src="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <a href="https://pypi.org/project/tracereplay/"><img src="https://img.shields.io/pypi/v/tracereplay.svg" alt="PyPI version"></a>
+  <a href="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml"><img src="https://github.com/rakshithkumar608/TraceReplay/actions/workflows/ci.yml/badge.svg" alt="CI Status"></a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg" alt="Python Versions">
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <a href="https://mypy-lang.org/"><img src="https://img.shields.io/badge/type_checker-mypy_strict-blue.svg" alt="Mypy Strict"></a>
@@ -19,17 +26,158 @@
 
 **TraceReplay** is an open-source deterministic testing, fault injection, and cost guardrail platform purpose-built for applications powered by Large Language Models (LLMs) and autonomous AI agents.
 
-In traditional software, network mocking tools like VCR record HTTP traffic. But **modern AI agents are non-deterministic, multi-turn state machines**:
-- They generate varying prompts, execute dynamic Python tools, suffer from stealth token bloat, drift subtly across prompt engineering tweaks, and crash on third-party API rate limits.
+In traditional software, network mocking tools like VCR record simple HTTP calls. But **modern AI agents are non-deterministic, multi-turn state machines**:
+- They execute dynamic Python tools, suffer from stealth token bloat, drift subtly across prompt engineering tweaks, and crash on third-party API rate limits.
 - Repeated live API calls burn hundreds of dollars in CI, introduce 5-second network latencies per request, and cause flaky test failures.
 
-TraceReplay solves this by capturing multi-turn LLM reasoning, tool executions, and latency metrics into inspectable local fixtures—enabling **sub-millisecond deterministic replays**, **zero live API costs in CI**, **chaos resilience validation**, and **intelligent prompt drift tolerance**.
+TraceReplay captures multi-turn LLM reasoning, tool executions, and latency metrics into inspectable local fixtures—enabling **sub-millisecond deterministic replays**, **zero live API costs in CI**, **chaos resilience validation**, and **intelligent prompt drift tolerance**.
+
+---
+
+## Quick Installation
+
+Install TraceReplay using any modern Python package manager:
+
+```bash
+# Core package (lightweight, zero external AI dependencies)
+pip install tracereplay
+
+# With OpenAI SDK support
+pip install "tracereplay[openai]"
+
+# With all AI provider adapters (OpenAI, Claude, Gemini, Groq, Mistral, DeepSeek)
+pip install "tracereplay[all]"
+
+# Using uv (ultra-fast)
+uv add tracereplay
+
+# Using Poetry
+poetry add tracereplay
+```
+
+---
+
+## Interactive CLI & Doctor
+
+TraceReplay includes a command-line interface to inspect your environment, verify installed AI SDKs, and measure recorded cost savings:
+
+```bash
+# 1. Print welcome banner & quickstart
+tracereplay
+
+# 2. Check installed AI provider SDKs and environment API keys
+tracereplay check
+
+# 3. View recorded fixture metrics, token counts, and USD cost savings
+tracereplay stats
+```
+
+#### Example `tracereplay stats` output:
+```text
+Recorded Fixture Metrics (.tracereplay/fixtures):
+-------------------------------------------------------
+  Total Fixture Files:      12
+  Total Interactions:       48
+  Total Tokens Recorded:    142,850
+  Estimated Cost Saved:     $1.4285 USD
+-------------------------------------------------------
+Every replay execution saves $1.4285 USD in API costs!
+```
+
+---
+
+## How Developers Use TraceReplay
+
+TraceReplay supports **two flexible developer workflows**:
+
+### Pattern A: Directly in Main Code (`main.py`)
+*Ideal for rapid local development and prototyping without touching pytest.*
+
+A developer writes normal code, wraps their client with `patch(client)`, and runs inside `session(...)`:
+
+```python
+import os
+from openai import OpenAI
+from tracereplay import patch, session
+
+# 1. Normal client, wrapped with TraceReplay
+client = patch(OpenAI())
+
+
+def ask_assistant(prompt: str) -> str:
+    # This function is 100% normal OpenAI code!
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content
+
+
+# 2. Run inside session (mode='auto' records on 1st run, replays on 2nd run!)
+mode = os.getenv("TRACEREPLAY_MODE", "auto")
+
+with session("assistant_run", mode=mode):
+    answer = ask_assistant("Explain quantum computing in 1 sentence.")
+    print(answer)
+```
+
+- **Run 1 (Record):** Calls OpenAI once over the network (~2.5s) and saves the response.
+- **Run 2+ (Replay):** Finishes in **0.004 seconds** for **$0.00** without touching the network!
+
+> [!NOTE]
+> **Production Safety Guarantee:** In production (where no `session()` is active, or when `TRACEREPLAY_DISABLE=1` is set), TraceReplay becomes completely inert. It executes real calls directly at native speed with zero overhead and zero disk writes.
+
+---
+
+### Pattern B: In Test Suites (`pytest`)
+*Ideal for clean production codebases where production code remains 100% pure.*
+
+Your application code stays completely untouched. You only add `@pytest.mark.trace_replay` in your test file:
+
+```python
+# test_app.py
+import pytest
+from my_app import client, ask_assistant
+
+
+@pytest.mark.trace_replay
+def test_assistant(auto_patch):
+    auto_patch(client)  # TraceReplay intercepts this client transparently
+
+    reply = ask_assistant("What is 2 + 2?")
+    assert "4" in reply
+```
+
+Run tests from the terminal:
+```bash
+# 1. First run: records live interactions into .tracereplay/fixtures/
+pytest -v --tracereplay-mode=record
+
+# 2. Subsequent runs: replays offline in 0ms without API keys
+pytest -v --tracereplay-mode=replay
+```
+
+---
+
+## How Development Teams Collaborate
+
+```mermaid
+flowchart LR
+    A["1. Dev writes feature on laptop"] --> B["2. Runs 'record' once"]
+    B --> C["3. Commits fixtures to Git"]
+    C --> D["4. Teammates run replay ($0 API keys)"]
+    C --> E["5. CI/CD runs in 2s ($0 cost)"]
+```
+
+1. **Local Recording:** Developer A builds an AI agent and runs `pytest --tracereplay-mode=record`.
+2. **Git Commit:** Developer A commits `.tracereplay/fixtures/*.json` into Git alongside their code.
+3. **Teammates Pull:** Developer B pulls the repo and runs tests. **Developer B doesn't even need an OpenAI API key**—TraceReplay replays the exact fixtures in milliseconds.
+4. **Fast CI/CD:** GitHub Actions runs `pytest --tracereplay-mode=replay`. 100 tests finish in 3 seconds for **$0.00**, eliminating the security risk of storing private API keys in CI secrets.
+5. **Prompt Updates:** When updating prompts or models months later, run `--tracereplay-mode=record` once to refresh the fixtures.
 
 ---
 
 ## The 5 Breakthrough WOW Features
-
-TraceReplay introduces 5 breakthrough capabilities not found in any other mocking or replay framework:
 
 | # | Breakthrough Feature | What It Does | Why Developers Love It |
 |---|---|---|---|
@@ -41,25 +189,100 @@ TraceReplay introduces 5 breakthrough capabilities not found in any other mockin
 
 ---
 
-## Why TraceReplay?
+### 1. Time-Travel Forking
+Replay steps 0..3 deterministically from disk, then fork into live recording at step 4:
 
-| Testing LLMs Without TraceReplay | Testing With TraceReplay |
-| :--- | :--- |
-| 💸 **Costly:** Burning API credits on every git push and test run | 🆓 **Zero Cost:** Pay for tokens once during record, replay free forever |
-| 🐢 **Slow:** 1–5 seconds per LLM request over the network | ⚡ **Blazing Fast:** Sub-5ms replay latency directly from local disk |
-| 🎲 **Flaky:** Stochastic model outputs break test assertions randomly | 🎯 **100% Deterministic:** Same input always yields identical recorded output |
-| 💥 **Brittle:** Minor prompt edits or date changes invalidate tests | 🧠 **Smart Drift:** Semantic matching allows natural prompt evolution |
-| 💣 **Vulnerable:** Uncaught rate limits crash agents in production | 🧪 **Chaos Tested:** 9 native fault injectors simulate real-world API chaos |
-| 🛑 **Runaway Bills:** Rogue agents can loop infinitely and drain accounts | 🛡️ **Guardrails:** Hard budget stops cut off execution if caps are exceeded |
+```python
+with tracereplay.session(
+    name="base_workflow",
+    fork_at_step=4,
+    fork_session_name="base_workflow_branch_step4",
+    fork_to_mode="record",
+) as sess:
+    # Steps 0-3 execute deterministically for free
+    # Step 4 branches into live execution and saves to the new fixture!
+    run_multiturn_agent()
+```
 
 ---
 
-## The Zero-Live-Fallback Guarantee
+### 2. AI Chaos Engineering
+Test your agent's retry and fallback logic by injecting authentic provider errors:
 
-> [!IMPORTANT]
-> TraceReplay enforces a strict **Zero-Live-Fallback Guarantee**:
-> In `REPLAY` mode, if a request does not match a recorded fixture, TraceReplay raises a detailed [`RequestMismatchError`](#mismatch-diagnostics) with a unified diff and semantic similarity hint.
-> **It will NEVER silently hit the live provider or charge your credit card.**
+```python
+import tracereplay as tr
+
+# Inject a 429 Rate Limit error into the order_service tool:
+chaos_fault = tr.chaos.rate_limit(tool="order_service", retry_after=5)
+
+with tr.session("resilience_test", chaos=[chaos_fault]):
+    # Your agent's backoff and retry handling is tested without touching the internet!
+    run_agent()
+```
+
+TraceReplay includes 9 native fault injectors: `rate_limit`, `timeout`, `server_error`, `context_length_exceeded`, `malformed_json`, `hallucinated_tool`, `safety_refusal`, `latency_jitter`, and `custom_exception`.
+
+---
+
+### 3. Token, Cost & Latency Guardrails
+Set hard budget caps on test runs. If an agent loops infinitely or inflates prompts, TraceReplay cuts it off:
+
+```python
+import tracereplay as tr
+
+# Hard cap: Max $0.05 USD and max 2,000 total tokens
+budget_guard = tr.guardrails.cost_budget(max_cost_usd=0.05)
+
+with tr.session("financial_analyst", guardrails=budget_guard) as sess:
+    run_agent()
+
+# Print comprehensive token and dollar breakdown:
+print(sess.guardrail_report.summary_text())
+```
+
+---
+
+### 4. Semantic Diff & Smart Drift Detection
+Normal mocking breaks if 1 word changes. TraceReplay uses pure-Python hybrid cosine similarity to tolerate natural prompt evolution:
+
+```python
+with tracereplay.session(
+    name="customer_service",
+    mode="replay",
+    semantic_matching=True,
+    semantic_threshold=0.85,  # Accepts drift if similarity >= 85%
+) as sess:
+    # "You are a customer service assistant. Explain refund policy."
+    # vs
+    # "You are a polite customer support assistant. Explain refund policy concisely."
+    # Replays successfully without crashing!
+    run_agent()
+```
+
+TraceReplay prints an inline colorized word diff in your terminal:
+```text
+Inline Word Diff:
+  you are a {+polite+} customer [-service-] {+support+} assistant . explain refund policy {+concisely+} .
+  Added words:   ['polite', 'support', 'concisely']
+  Removed words: ['service']
+
+[Hint] Prompts are 83.9% similar. Enable semantic matching (`semantic_threshold=0.80`) to allow this prompt drift.
+```
+
+---
+
+### 5. Deterministic Clock & Freeze Time
+Eliminate dynamic timestamp flakiness and fast-forward sleep delays:
+
+```python
+import time
+from tracereplay import freeze_time
+
+# Freeze datetime to a fixed timestamp and fast-forward sleeps:
+with freeze_time("2026-11-07 10:00:00 UTC", simulate_sleep=True):
+    # A 60-second exponential retry sleep completes in 0.002 seconds!
+    time.sleep(60.0)
+```
 
 ---
 
@@ -76,288 +299,6 @@ TraceReplay provides universal adapters that normalize requests and responses ac
 | **Mistral AI** | `mistralai.Mistral` | ✅ Supported | ✅ Supported |
 | **DeepSeek** | OpenAI-compatible endpoint | ✅ Supported | ✅ Supported |
 | **Ollama / Local LLMs** | Local inference (`http://localhost:11434`) | ✅ Supported | ✅ Supported |
-
----
-
-## Installation
-
-```bash
-# Core package
-pip install tracereplay
-
-# With specific provider SDKs
-pip install "tracereplay[openai]"
-pip install "tracereplay[anthropic]"
-pip install "tracereplay[gemini]"
-pip install "tracereplay[groq]"
-
-# Full developer installation
-pip install "tracereplay[all]"
-```
-
----
-
-## Quickstart
-
-### 1. Pytest Plugin Integration
-
-Add the `@pytest.mark.trace_replay` marker. The fixture is recorded on the first run, and replayed in sub-millisecond time on subsequent runs:
-
-```python
-import pytest
-from openai import OpenAI
-
-
-@pytest.mark.trace_replay
-def test_order_status_agent(tracereplay_patch):
-    client = OpenAI()
-    tracereplay_patch(client)
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": "How do I track my order?"}],
-    )
-
-    content = response.choices[0].message.content
-    assert "order" in content.lower()
-```
-
-Run tests from the terminal:
-```bash
-# AUTO mode: records if fixture missing, replays if fixture exists
-pytest -v
-
-# Strict replay mode (guaranteed zero live network calls)
-pytest --tracereplay-mode=replay
-```
-
----
-
-### 2. Programmatic Python SDK (Context Manager)
-
-```python
-import tracereplay
-from groq import Groq
-
-client = Groq()
-tracereplay.patch(client, provider="groq")
-
-with tracereplay.session("groq_fast_inference", mode="auto"):
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": "Explain quantum entanglement in 1 sentence."}],
-    )
-    print(response.choices[0].message.content)
-```
-
----
-
-## Deep Dive: The 5 WOW Features in Action
-
-### 1. Time-Travel Forking
-
-Fast-forward through multi-step reasoning deterministically, then fork into live recording at any specific step or tool call:
-
-```python
-import tracereplay
-from tracereplay import record_tool
-
-
-@record_tool(name="search_database")
-def search_database(query: str) -> str:
-    return "Found record #402"
-
-
-# Replay steps 0..3 from "base_workflow", then branch into live recording at step 4:
-with tracereplay.session(
-    name="base_workflow",
-    fork_at_step=4,
-    fork_session_name="base_workflow_branch_step4",
-) as sess:
-    # Steps 0-3 execute deterministically from disk
-    # Step 4 transitions into live execution and records to the new branch fixture!
-    ...
-```
-
-You can also fork right when a specific tool is called:
-```python
-with tracereplay.session(name="base_workflow", fork_at_tool="search_database"):
-    ...
-```
-
----
-
-### 2. AI Chaos Engineering & Fault Injection
-
-Verify that your agent handles real-world production outages without crashing:
-
-```python
-from tracereplay import chaos
-
-# Simulate a 429 Rate Limit on turn 1, with native OpenAI RateLimitError:
-rate_limit_fault = chaos.rate_limit(
-    step=1,
-    retry_after=5,
-    native=True,  # Raises actual openai.RateLimitError
-)
-
-with tracereplay.session(name="agent_resilience_test", chaos=rate_limit_fault):
-    # Your agent's retry and backoff logic is tested under authentic conditions!
-    ...
-```
-
-TraceReplay supports 9 native fault types:
-- `chaos.rate_limit(step=..., retry_after=5)`
-- `chaos.timeout(step=..., simulated_delay=2.0)`
-- `chaos.server_error(step=..., status_code=503)`
-- `chaos.context_length_exceeded(step=..., max_context=128000)`
-- `chaos.malformed_json(step=..., corruption_type="truncated")`
-- `chaos.hallucinated_tool(step=..., tool_name="unauthorized_delete_db")`
-- `chaos.safety_refusal(step=..., refusal_message="Content policy refusal")`
-- `chaos.latency_jitter(step=..., min_delay_ms=500, max_delay_ms=2000)`
-- `chaos.custom_exception(step=..., exception=MyCustomError("API failed"))`
-
----
-
-### 3. Token, Cost & Latency Guardrails
-
-Protect your infrastructure against runaway agent loops and catch prompt bloat:
-
-```python
-with tracereplay.session(
-    name="financial_analyst",
-    max_cost_usd=0.05,  # Hard stop at $0.05 USD
-    max_tokens=4000,  # Hard stop at 4,000 total tokens
-    max_latency_ms=3000.0,  # Max 3 seconds cumulative latency
-) as sess:
-    # If a rogue multi-turn loop exceeds $0.05, TraceReplay instantly cuts it off
-    # by raising CostBudgetExceededError!
-    ...
-
-# Generate comprehensive budget reports:
-print(sess.guardrail_report.summary_text())
-```
-
-> [!TIP]
-> **Zero-Network Offline Regression Testing:**
-> When replaying fixtures in CI, TraceReplay computes replayed tokens and costs against your limits. If a prompt grew too large, CI catches it offline at **$0 cost**!
-
----
-
-### 4. Semantic Diff & Smart Drift Detection
-
-Avoid breaking test suites when prompts undergo minor wording or prompt engineering changes:
-
-```python
-with tracereplay.session(
-    name="customer_service",
-    mode="replay",
-    semantic_matching=True,  # Enable fuzzy matching
-    semantic_threshold=0.85,  # 85% similarity threshold
-) as sess:
-    # "You are a customer service assistant. Explain refund policy."
-    # vs
-    # "You are a polite customer support assistant. Explain refund policy concisely."
-    # Replays successfully without crashing!
-    ...
-
-# Inspect prompt evolution across your test suite:
-print(sess.drift_report.summary_text())
-```
-
-TraceReplay prints an inline word-level diff and unified diff:
-```text
-Inline Word Diff:
-  you are a {+polite+} customer [-service-] {+support+} assistant . explain refund policy {+concisely+} .
-  Added words:   ['polite', 'support', 'concisely']
-  Removed words: ['service']
-
-[Hint] Prompts are 83.9% similar. Enable semantic matching (`semantic_matching=True, semantic_threshold=0.80`) to allow this prompt drift.
-```
-
----
-
-### 5. Deterministic Clock & Freeze Time
-
-Eliminate dynamic timestamp flakiness and speed up test suites by eliminating real sleep delays:
-
-```python
-# 1. Automatic Fixture Time Sync:
-# In REPLAY mode, TraceReplay automatically freezes datetime.now() to the exact
-# timestamp recorded in the fixture!
-with tracereplay.session(name="booking_agent", mode="replay", freeze_time=True):
-    # Dynamic prompt dates ("Today is 2026-11-07") match the fixture 100% deterministically!
-    ...
-
-# 2. Instant Sleep Fast-Forwarding:
-from tracereplay import freeze_time
-
-with freeze_time("2026-11-07 10:00:00 UTC"):
-    # Agent retry loops calling time.sleep(60.0) run in 0.04 milliseconds!
-    time.sleep(60.0)
-    assert datetime.datetime.utcnow().minute == 1
-```
-
----
-
-## Autonomous Agent Tools & Tracker
-
-Decorate your agent's local Python tools to record their inputs and outputs. During `REPLAY`, **real tools are completely bypassed**:
-
-```python
-from tracereplay import AgentTracker, record_tool
-
-
-@record_tool(name="fetch_user_balance")
-def fetch_user_balance(user_id: str) -> float:
-    # In RECORD: Executes real DB query
-    # In REPLAY: Completely skipped, returns recorded output in 0.1ms
-    return db.query_balance(user_id)
-
-
-# Visualize the multi-turn agent execution graph:
-tracker = AgentTracker(agent_name="support_agent")
-tracker.add_user_input("Can you check my balance?")
-tracker.add_llm_decision("Call fetch_user_balance tool")
-tracker.add_tool_result("fetch_user_balance", result=150.25)
-tracker.add_final_answer("Your current balance is $150.25.")
-
-print(tracker.visualize_flow())
-```
-
----
-
-## Runnable Examples Directory
-
-Explore the complete collection of self-contained, executable scripts in [`examples/`](examples/):
-
-| Example Script | Demonstrates | Run Command |
-| :--- | :--- | :--- |
-| [`01_quickstart_openai.py`](examples/01_quickstart_openai.py) | OpenAI SDK record & sub-5ms replay | `python examples/01_quickstart_openai.py` |
-| [`02_pytest_workflow/`](examples/02_pytest_workflow/) | Native Pytest plugin test suite | `pytest examples/02_pytest_workflow/` |
-| [`03_autonomous_agent_tools.py`](examples/03_autonomous_agent_tools.py) | `@record_tool` & `AgentTracker` visualization | `python examples/03_autonomous_agent_tools.py` |
-| [`04_multi_provider.py`](examples/04_multi_provider.py) | Cross-provider switching (OpenAI, Claude, Gemini, Groq) | `python examples/04_multi_provider.py` |
-| [`05_quickstart_groq.py`](examples/05_quickstart_groq.py) | High-speed Groq LPU inference recording | `python examples/05_quickstart_groq.py` |
-| [`06_token_cost_guardrails.py`](examples/06_token_cost_guardrails.py) | Budget caps, hard stops & offline regression testing | `python examples/06_token_cost_guardrails.py` |
-| [`07_semantic_drift_detection.py`](examples/07_semantic_drift_detection.py) | Fuzzy replay matching, word diffs & drift reports | `python examples/07_semantic_drift_detection.py` |
-| [`08_deterministic_clock_freeze_time.py`](examples/08_deterministic_clock_freeze_time.py) | Fixture time auto-sync & instant 60s sleep fast-forward | `python examples/08_deterministic_clock_freeze_time.py` |
-
----
-
-## Configuration & Environment Variables
-
-Configure TraceReplay via `pyproject.toml`, CLI flags, or environment variables:
-
-| Setting | Environment Variable | Default | Description |
-| :--- | :--- | :--- | :--- |
-| **Mode** | `TRACEREPLAY_MODE` | `auto` | `auto`, `record`, `replay`, `passthrough` |
-| **Fixtures Dir** | `TRACEREPLAY_DIR` | `.tracereplay/fixtures` | Directory where JSON fixtures are saved |
-| **Simulate Latency** | `TRACEREPLAY_SIMULATE_LATENCY` | `false` | Replay with real recorded latency delays |
-| **Match Parameters** | `TRACEREPLAY_MATCH_PARAMETERS` | `true` | Compare request parameters (temperature, etc.) |
-| **Strict Ordering** | `TRACEREPLAY_STRICT_ORDERING` | `true` | Enforce sequential interaction ordering |
-| **Semantic Matching** | `TRACEREPLAY_SEMANTIC_MATCHING` | `false` | Enable fuzzy/semantic request matching |
-| **Semantic Threshold**| `TRACEREPLAY_SEMANTIC_THRESHOLD`| `0.85` | Minimum similarity score (0.0 - 1.0) |
-| **Freeze Time** | `TRACEREPLAY_FREEZE_TIME` | `None` | `true` (auto-sync), or ISO datetime string |
 
 ---
 
@@ -383,7 +324,7 @@ cd TraceReplay
 # Install in editable mode with development dependencies
 pip install -e ".[dev,all]"
 
-# Run full test suite (157 unit & integration tests)
+# Run full test suite (168 unit & integration tests)
 pytest -v
 
 # Run linting and type checking
