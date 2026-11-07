@@ -51,11 +51,14 @@ def create_project(payload: ProjectCreate) -> ProjectRead:
     """Create a new project in the database."""
     settings = get_settings()
 
+    target_org_id = payload.org_id
+
     if settings.is_local_mode:
-        # Local mode: simulate persistence
+        if target_org_id is None:
+            target_org_id = UUID("00000000-0000-0000-0000-000000000000")
         return ProjectRead(
             id=uuid4(),
-            org_id=payload.org_id,
+            org_id=target_org_id,
             name=payload.name,
             slug=payload.slug,
             description=payload.description,
@@ -69,8 +72,22 @@ def create_project(payload: ProjectCreate) -> ProjectRead:
             detail="Database connection is not available",
         )
 
+    if target_org_id is None:
+        org_res = client.table("organizations").select("id").limit(1).execute()
+        existing_orgs = extract_records(org_res.data)
+        if existing_orgs:
+            target_org_id = UUID(str(existing_orgs[0]["id"]))
+        else:
+            create_org = {"name": "Default Organization", "slug": "default-org"}
+            c_res = client.table("organizations").insert(create_org).execute()
+            new_orgs = extract_records(c_res.data)
+            if new_orgs:
+                target_org_id = UUID(str(new_orgs[0]["id"]))
+            else:
+                target_org_id = UUID("00000000-0000-0000-0000-000000000000")
+
     record = {
-        "org_id": str(payload.org_id),
+        "org_id": str(target_org_id),
         "name": payload.name,
         "slug": payload.slug,
         "description": payload.description,

@@ -73,7 +73,7 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    org_id: UUID
+    org_id: UUID | None = None
 
 
 class ProjectRead(ProjectBase):

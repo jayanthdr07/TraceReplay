@@ -23,9 +23,10 @@ def get_supabase_client() -> Client | None:
     if settings.is_local_mode:
         return None
 
-    if _supabase_client is None and settings.supabase_url and settings.supabase_key:
+    effective_key = settings.supabase_service_role_key or settings.supabase_key
+    if _supabase_client is None and settings.supabase_url and effective_key:
         try:
-            _supabase_client = create_client(settings.supabase_url, settings.supabase_key)
+            _supabase_client = create_client(settings.supabase_url, effective_key)
             logger.info("Supabase client initialized successfully.")
         except Exception as e:
             logger.error(f"Failed to initialize Supabase client: {e}")
