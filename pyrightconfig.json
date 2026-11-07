@@ -1,0 +1,13 @@
+{
+  "include": [
+    "src",
+    "tests",
+    "platform/backend"
+  ],
+  "extraPaths": [
+    "src",
+    "platform/backend"
+  ],
+  "typeCheckingMode": "basic"
+}
+
