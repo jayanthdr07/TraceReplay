@@ -39,6 +39,11 @@ staging_phase1/
 /app
 
 
+# Frontend dependencies & build artifacts
+node_modules/
+.next/
+out/
+
 # Local Assets & Scratch Directories
 assets/
 scratch/
