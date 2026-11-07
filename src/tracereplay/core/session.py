@@ -16,6 +16,8 @@ from tracereplay.exceptions import (
     LiveFallbackProhibitedError,
     TraceReplayError,
 )
+from tracereplay.guardrails.engine import GuardrailEngine
+from tracereplay.guardrails.models import GuardrailConfig, GuardrailReport
 from tracereplay.matcher.rules import RequestMatcher
 from tracereplay.models import Interaction, ReplayMode, ToolCallRecord
 from tracereplay.sanitizer import Sanitizer
@@ -43,6 +45,10 @@ class TraceReplaySession:
         fork_session_name: str | None = None,
         fork_to_mode: ReplayMode | str = ReplayMode.RECORD,
         chaos: ChaosConfig | list[Fault] | None = None,
+        guardrails: GuardrailConfig | None = None,
+        max_cost_usd: float | None = None,
+        max_tokens: int | None = None,
+        max_latency_ms: float | None = None,
     ) -> None:
         self.name = name
         self.config = config or get_config()
@@ -72,6 +78,21 @@ class TraceReplaySession:
             else:
                 self.chaos_config = ChaosConfig()
             self.chaos_engine = ChaosEngine(self.chaos_config)
+
+        # Token, Cost & Latency Guardrails
+        self.guardrail_config: GuardrailConfig | None = None
+        self.guardrail_engine: GuardrailEngine | None = None
+        if guardrails is not None:
+            self.guardrail_config = guardrails
+        elif any(v is not None for v in (max_cost_usd, max_tokens, max_latency_ms)):
+            self.guardrail_config = GuardrailConfig(
+                max_cost_usd=max_cost_usd,
+                max_tokens=max_tokens,
+                max_latency_ms=max_latency_ms,
+            )
+
+        if self.guardrail_config is not None:
+            self.guardrail_engine = GuardrailEngine(self.guardrail_config)
 
         self._is_forked: bool = False
         self._llm_step_count: int = 0
@@ -241,6 +262,19 @@ class TraceReplaySession:
             )
         return await self.replayer.areplay_tool_execution(function_name, arguments)
 
+    @property
+    def guardrail_report(self) -> GuardrailReport | None:
+        """Return the current diagnostic report from the GuardrailEngine, if active."""
+        if self.guardrail_engine is not None:
+            return self.guardrail_engine.generate_report()
+        return None
+
+    @property
+    def budget_summary(self) -> dict[str, Any] | None:
+        """Convenience dictionary of current token, cost, and latency metrics."""
+        report = self.guardrail_report
+        return report.to_dict() if report is not None else None
+
     def __enter__(self) -> TraceReplaySession:
         self._token = _CURRENT_SESSION.set(self)
         return self
@@ -291,6 +325,10 @@ def session(
     fork_session_name: str | None = None,
     fork_to_mode: ReplayMode | str = ReplayMode.RECORD,
     chaos: ChaosConfig | list[Fault] | None = None,
+    guardrails: GuardrailConfig | None = None,
+    max_cost_usd: float | None = None,
+    max_tokens: int | None = None,
+    max_latency_ms: float | None = None,
 ) -> TraceReplaySession:
     """Convenience context manager to start a TraceReplay session."""
     return TraceReplaySession(
@@ -306,4 +344,8 @@ def session(
         fork_session_name=fork_session_name,
         fork_to_mode=fork_to_mode,
         chaos=chaos,
+        guardrails=guardrails,
+        max_cost_usd=max_cost_usd,
+        max_tokens=max_tokens,
+        max_latency_ms=max_latency_ms,
     )

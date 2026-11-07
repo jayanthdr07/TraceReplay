@@ -116,6 +116,13 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 sess.notify_llm_call_completed()
                 return chaos_response
 
+        # Guardrail pre-request check
+        if sess is not None and sess.guardrail_engine is not None:
+            sess.guardrail_engine.evaluate_pre_request(
+                request=request,
+                step_index=sess._llm_step_count,
+            )
+
         if sess.mode == ReplayMode.RECORD:
             start = time.perf_counter()
             raw_response = orig_fn(*args, **kwargs)
@@ -123,14 +130,32 @@ def patch(client: Any, provider: str | None = None) -> Any:
             response_payload = adapter.after_response(raw_response)
             if sess.recorder:
                 sess.recorder.record_interaction(request, response_payload, duration_ms=duration_ms)
+            if sess.guardrail_engine is not None:
+                sess.guardrail_engine.evaluate_post_response(
+                    request=request,
+                    response=response_payload,
+                    duration_ms=duration_ms,
+                    step_index=sess._llm_step_count,
+                )
             sess.notify_llm_call_completed()
             return raw_response
 
         if sess.mode == ReplayMode.REPLAY:
             if sess.replayer is None:
                 raise TraceReplayError("No replayer active in session")
+            start = time.perf_counter()
             replayed_payload = sess.replayer.replay_interaction(request)
             res = adapter.build_replayed_response(replayed_payload, request)
+            eval_duration_ms = (time.perf_counter() - start) * 1000.0
+            if sess.replayer.replayed_interactions:
+                eval_duration_ms = sess.replayer.replayed_interactions[-1].duration_ms
+            if sess.guardrail_engine is not None:
+                sess.guardrail_engine.evaluate_post_response(
+                    request=request,
+                    response=replayed_payload,
+                    duration_ms=eval_duration_ms,
+                    step_index=sess._llm_step_count,
+                )
             sess.notify_llm_call_completed()
             return res
 
@@ -161,6 +186,13 @@ def patch(client: Any, provider: str | None = None) -> Any:
                 sess.notify_llm_call_completed()
                 return chaos_response
 
+        # Guardrail pre-request check
+        if sess is not None and sess.guardrail_engine is not None:
+            sess.guardrail_engine.evaluate_pre_request(
+                request=request,
+                step_index=sess._llm_step_count,
+            )
+
         if sess.mode == ReplayMode.RECORD:
             start = time.perf_counter()
             raw_response = await orig_fn(*args, **kwargs)
@@ -168,14 +200,32 @@ def patch(client: Any, provider: str | None = None) -> Any:
             response_payload = adapter.after_response(raw_response)
             if sess.recorder:
                 sess.recorder.record_interaction(request, response_payload, duration_ms=duration_ms)
+            if sess.guardrail_engine is not None:
+                sess.guardrail_engine.evaluate_post_response(
+                    request=request,
+                    response=response_payload,
+                    duration_ms=duration_ms,
+                    step_index=sess._llm_step_count,
+                )
             sess.notify_llm_call_completed()
             return raw_response
 
         if sess.mode == ReplayMode.REPLAY:
             if sess.replayer is None:
                 raise TraceReplayError("No replayer active in session")
+            start = time.perf_counter()
             replayed_payload = await sess.replayer.areplay_interaction(request)
             res = adapter.build_replayed_response(replayed_payload, request)
+            eval_duration_ms = (time.perf_counter() - start) * 1000.0
+            if sess.replayer.replayed_interactions:
+                eval_duration_ms = sess.replayer.replayed_interactions[-1].duration_ms
+            if sess.guardrail_engine is not None:
+                sess.guardrail_engine.evaluate_post_response(
+                    request=request,
+                    response=replayed_payload,
+                    duration_ms=eval_duration_ms,
+                    step_index=sess._llm_step_count,
+                )
             sess.notify_llm_call_completed()
             return res
 
