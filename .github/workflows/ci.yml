@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" -e platform/backend
 
       - name: Run Ruff Lint
         run: ruff check .
@@ -36,7 +36,7 @@ jobs:
         run: ruff format --check .
 
       - name: Run Mypy Typecheck
-        run: mypy src tests
+        run: mypy src tests platform/backend
 
   test:
     name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
@@ -61,7 +61,7 @@ jobs:
       - name: Install package & test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" -e platform/backend
 
       - name: Run Pytest
         run: pytest -v --strict-markers
