@@ -92,7 +92,15 @@ def record_tool(
                     )
 
                 if sess.mode == ReplayMode.REPLAY:
+                    start = time.perf_counter()
                     res = await sess.areplay_tool_call(tool_name, call_args)
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    if sess.guardrail_engine is not None:
+                        sess.guardrail_engine.evaluate_tool_execution(
+                            tool_name=tool_name,
+                            duration_ms=duration_ms,
+                            step_index=sess._total_step_count,
+                        )
                     sess.notify_tool_call_completed()
                     return res
 
@@ -108,6 +116,12 @@ def record_tool(
                         duration_ms=duration_ms,
                     )
                     sess.record_tool_call(record)
+                    if sess.guardrail_engine is not None:
+                        sess.guardrail_engine.evaluate_tool_execution(
+                            tool_name=tool_name,
+                            duration_ms=duration_ms,
+                            step_index=sess._total_step_count,
+                        )
                     sess.notify_tool_call_completed()
                     return res
                 except Exception as err:
@@ -148,7 +162,15 @@ def record_tool(
                     )
 
                 if sess.mode == ReplayMode.REPLAY:
+                    start = time.perf_counter()
                     res = sess.replay_tool_call(tool_name, call_args)
+                    duration_ms = (time.perf_counter() - start) * 1000.0
+                    if sess.guardrail_engine is not None:
+                        sess.guardrail_engine.evaluate_tool_execution(
+                            tool_name=tool_name,
+                            duration_ms=duration_ms,
+                            step_index=sess._total_step_count,
+                        )
                     sess.notify_tool_call_completed()
                     return res
 
@@ -164,6 +186,12 @@ def record_tool(
                         duration_ms=duration_ms,
                     )
                     sess.record_tool_call(record)
+                    if sess.guardrail_engine is not None:
+                        sess.guardrail_engine.evaluate_tool_execution(
+                            tool_name=tool_name,
+                            duration_ms=duration_ms,
+                            step_index=sess._total_step_count,
+                        )
                     sess.notify_tool_call_completed()
                     return res
                 except Exception as err:

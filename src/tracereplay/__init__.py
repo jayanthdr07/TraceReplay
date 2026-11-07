@@ -6,7 +6,7 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
-from tracereplay import chaos
+from tracereplay import chaos, guardrails
 from tracereplay.agent import AgentStep, AgentStepType, AgentTracker, record_tool
 from tracereplay.chaos import ChaosConfig, ChaosEngine, Fault, FaultType
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
@@ -18,6 +18,7 @@ from tracereplay.core import (
     session,
 )
 from tracereplay.exceptions import (
+    BudgetExceededError,
     ChaosContextLengthError,
     ChaosError,
     ChaosMalformedOutputError,
@@ -25,15 +26,30 @@ from tracereplay.exceptions import (
     ChaosServerError,
     ChaosTimeoutError,
     ConfigurationError,
+    CostBudgetExceededError,
     FixtureNotFoundError,
     InvalidFixtureError,
+    LatencyBudgetExceededError,
     LiveFallbackProhibitedError,
     RecordingError,
     RequestMismatchError,
     SequenceMismatchError,
+    TokenBudgetExceededError,
     ToolExecutionError,
     TraceReplayError,
     UnsupportedOperationError,
+)
+from tracereplay.guardrails import (
+    GuardrailAction,
+    GuardrailConfig,
+    GuardrailEngine,
+    GuardrailReport,
+    GuardrailType,
+    GuardrailViolation,
+    calculate_token_cost,
+    cost_budget,
+    latency_budget,
+    token_budget,
 )
 from tracereplay.matcher import (
     MatchResult,
@@ -134,12 +150,28 @@ __all__ = [
     "ChaosServerError",
     "ChaosContextLengthError",
     "ChaosMalformedOutputError",
+    "BudgetExceededError",
+    "TokenBudgetExceededError",
+    "CostBudgetExceededError",
+    "LatencyBudgetExceededError",
     # Chaos Engineering
     "chaos",
     "ChaosConfig",
     "ChaosEngine",
     "Fault",
     "FaultType",
+    # Guardrails
+    "guardrails",
+    "GuardrailConfig",
+    "GuardrailAction",
+    "GuardrailType",
+    "GuardrailViolation",
+    "GuardrailReport",
+    "GuardrailEngine",
+    "calculate_token_cost",
+    "token_budget",
+    "cost_budget",
+    "latency_budget",
     # Storage & Sanitizer
     "Sanitizer",
     "sanitize_data",

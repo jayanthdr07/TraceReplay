@@ -63,8 +63,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
         "trace_replay(fixture=None, mode=None, dir=None, fork_at_step=None, fork_at_tool=None, "
-        "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None, chaos=None): "
-        "Record, replay, time-travel fork, or inject AI chaos faults into test executions.",
+        "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None, chaos=None, "
+        "guardrails=None, max_cost_usd=None, max_tokens=None, max_latency_ms=None): "
+        "Record, replay, time-travel fork, inject AI faults, or enforce token/cost guardrails.",
     )
 
 
@@ -152,6 +153,10 @@ def create_tracereplay_session(
     )
     fork_to_mode = ReplayMode(raw_fork_to_mode) if raw_fork_to_mode else ReplayMode.RECORD
     chaos_param = marker.kwargs.get("chaos") if marker else None
+    guardrails_param = marker.kwargs.get("guardrails") if marker else None
+    max_cost_usd_param = marker.kwargs.get("max_cost_usd") if marker else None
+    max_tokens_param = marker.kwargs.get("max_tokens") if marker else None
+    max_latency_ms_param = marker.kwargs.get("max_latency_ms") if marker else None
 
     sess = TraceReplaySession(
         name=fixture_name,
@@ -163,6 +168,10 @@ def create_tracereplay_session(
         fork_session_name=fork_session_name,
         fork_to_mode=fork_to_mode,
         chaos=chaos_param,
+        guardrails=guardrails_param,
+        max_cost_usd=max_cost_usd_param,
+        max_tokens=max_tokens_param,
+        max_latency_ms=max_latency_ms_param,
     )
 
     with sess:

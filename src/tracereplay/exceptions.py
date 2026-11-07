@@ -208,3 +208,104 @@ class ChaosContextLengthError(ChaosError):
 
 class ChaosMalformedOutputError(ChaosError):
     """Raised when an injected malformed output cannot be processed by the recipient."""
+
+
+# ============================================================================
+# Token, Cost & Latency Guardrail Exceptions
+# ============================================================================
+
+
+class BudgetExceededError(TraceReplayError):
+    """Base exception for all token, financial cost, or latency budget breaches."""
+
+    def __init__(
+        self,
+        message: str,
+        metric: str,
+        threshold: float,
+        actual: float,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        extra["metric"] = metric
+        extra["threshold"] = threshold
+        extra["actual"] = actual
+        super().__init__(message, details=extra)
+        self.metric = metric
+        self.threshold = threshold
+        self.actual = actual
+
+
+class TokenBudgetExceededError(BudgetExceededError):
+    """Raised when an interaction or cumulative session exceeds allowable token caps."""
+
+    def __init__(
+        self,
+        threshold: float,
+        actual: float,
+        token_type: str = "total_tokens",
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        msg = (
+            message
+            or f"Token budget exceeded for '{token_type}': actual {actual:g} tokens "
+            f"exceeds limit of {threshold:g} tokens."
+        )
+        super().__init__(
+            message=msg,
+            metric=token_type,
+            threshold=threshold,
+            actual=actual,
+            details=details,
+        )
+
+
+class CostBudgetExceededError(BudgetExceededError):
+    """Raised when an interaction or cumulative session exceeds allowable financial cost in USD."""
+
+    def __init__(
+        self,
+        threshold: float,
+        actual: float,
+        cost_type: str = "total_cost",
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        msg = (
+            message
+            or f"Cost budget exceeded for '{cost_type}': actual ${actual:.4f} "
+            f"exceeds limit of ${threshold:.4f} USD."
+        )
+        super().__init__(
+            message=msg,
+            metric=cost_type,
+            threshold=threshold,
+            actual=actual,
+            details=details,
+        )
+
+
+class LatencyBudgetExceededError(BudgetExceededError):
+    """Raised when an interaction or cumulative session exceeds allowable latency limits."""
+
+    def __init__(
+        self,
+        threshold: float,
+        actual: float,
+        latency_type: str = "latency_ms",
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        msg = (
+            message
+            or f"Latency budget exceeded for '{latency_type}': actual {actual:.1f}ms "
+            f"exceeds limit of {threshold:.1f}ms."
+        )
+        super().__init__(
+            message=msg,
+            metric=latency_type,
+            threshold=threshold,
+            actual=actual,
+            details=details,
+        )
