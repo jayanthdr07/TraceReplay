@@ -6,9 +6,15 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
-from tracereplay import chaos, guardrails, semantic
+from tracereplay import chaos, clock, guardrails, semantic
 from tracereplay.agent import AgentStep, AgentStepType, AgentTracker, record_tool
 from tracereplay.chaos import ChaosConfig, ChaosEngine, Fault, FaultType
+from tracereplay.clock import (
+    ClockConfig,
+    ClockState,
+    DeterministicClock,
+    freeze_time,
+)
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
 from tracereplay.core import (
     Recorder,
@@ -179,6 +185,12 @@ __all__ = [
     "ChaosEngine",
     "Fault",
     "FaultType",
+    # Deterministic Clock & Freeze Time
+    "clock",
+    "ClockConfig",
+    "ClockState",
+    "DeterministicClock",
+    "freeze_time",
     # Guardrails
     "guardrails",
     "GuardrailConfig",

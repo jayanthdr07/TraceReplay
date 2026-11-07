@@ -65,8 +65,8 @@ def pytest_configure(config: pytest.Config) -> None:
         "trace_replay(fixture=None, mode=None, dir=None, fork_at_step=None, fork_at_tool=None, "
         "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None, chaos=None, "
         "guardrails=None, max_cost_usd=None, max_tokens=None, max_latency_ms=None, "
-        "semantic_matching=None, semantic_threshold=None, semantic_action=None): "
-        "Record, replay, time-travel fork, inject AI faults, guardrails, or detect semantic drift.",
+        "semantic_matching=None, semantic_threshold=None, semantic_action=None, freeze_time=None): "
+        "Record, replay, fork, inject chaos faults, enforce guardrails, drift, or freeze clock.",
     )
 
 
@@ -161,6 +161,7 @@ def create_tracereplay_session(
     semantic_matching_param = marker.kwargs.get("semantic_matching") if marker else None
     semantic_threshold_param = marker.kwargs.get("semantic_threshold") if marker else None
     semantic_action_param = marker.kwargs.get("semantic_action") if marker else None
+    freeze_time_param = marker.kwargs.get("freeze_time") if marker else None
 
     sess = TraceReplaySession(
         name=fixture_name,
@@ -179,6 +180,7 @@ def create_tracereplay_session(
         semantic_matching=semantic_matching_param,
         semantic_threshold=semantic_threshold_param,
         semantic_action=semantic_action_param,
+        freeze_time=freeze_time_param,
     )
 
     with sess:
