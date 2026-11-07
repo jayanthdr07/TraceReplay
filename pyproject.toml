@@ -120,7 +120,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["tracereplay"]
+known-first-party = ["tracereplay", "app"]
 
 [tool.mypy]
 python_version = "3.10"
