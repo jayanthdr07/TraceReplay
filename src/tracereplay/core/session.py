@@ -21,6 +21,12 @@ from tracereplay.guardrails.models import GuardrailConfig, GuardrailReport
 from tracereplay.matcher.rules import RequestMatcher
 from tracereplay.models import Interaction, ReplayMode, ToolCallRecord
 from tracereplay.sanitizer import Sanitizer
+from tracereplay.semantic import (
+    DriftAction,
+    DriftReport,
+    SemanticConfig,
+    SemanticMatcher,
+)
 from tracereplay.storage.json_storage import JsonStorageEngine
 
 _CURRENT_SESSION: contextvars.ContextVar[TraceReplaySession | None] = contextvars.ContextVar(
@@ -49,6 +55,10 @@ class TraceReplaySession:
         max_cost_usd: float | None = None,
         max_tokens: int | None = None,
         max_latency_ms: float | None = None,
+        semantic_matching: bool | None = None,
+        semantic_threshold: float | None = None,
+        semantic_action: DriftAction | str | None = None,
+        embedding_fn: Callable[[str], list[float]] | None = None,
     ) -> None:
         self.name = name
         self.config = config or get_config()
@@ -94,6 +104,34 @@ class TraceReplaySession:
         if self.guardrail_config is not None:
             self.guardrail_engine = GuardrailEngine(self.guardrail_config)
 
+        # Semantic Diff & Smart Drift Detection
+        self.semantic_config: SemanticConfig | None = None
+        self.semantic_matcher: SemanticMatcher | None = None
+
+        is_semantic_enabled = (
+            semantic_matching if semantic_matching is not None else self.config.semantic_matching
+        )
+        if is_semantic_enabled or semantic_threshold is not None or embedding_fn is not None:
+            eff_threshold = (
+                semantic_threshold
+                if semantic_threshold is not None
+                else self.config.semantic_threshold
+            )
+            raw_action = (
+                semantic_action if semantic_action is not None else self.config.semantic_action
+            )
+            eff_action = DriftAction(raw_action) if isinstance(raw_action, str) else raw_action
+            self.semantic_config = SemanticConfig(
+                enabled=True,
+                threshold=eff_threshold,
+                action=eff_action,
+                embedding_fn=embedding_fn,
+            )
+            self.semantic_matcher = SemanticMatcher(
+                config=self.semantic_config,
+                global_config=self.config,
+            )
+
         self._is_forked: bool = False
         self._llm_step_count: int = 0
         self._tool_step_count: int = 0
@@ -134,6 +172,7 @@ class TraceReplaySession:
                 storage=self.storage,
                 matcher=self.matcher,
                 config=self.config,
+                semantic_matcher=self.semantic_matcher,
             )
 
     @property
@@ -261,6 +300,20 @@ class TraceReplaySession:
                 f"Cannot replay tool call '{function_name}': session is not in REPLAY mode."
             )
         return await self.replayer.areplay_tool_execution(function_name, arguments)
+
+    @property
+    def drift_report(self) -> DriftReport:
+        """Return the cumulative semantic drift report for this session."""
+        if self.replayer is not None:
+            return self.replayer.drift_report
+        if self.semantic_matcher is not None:
+            return self.semantic_matcher.report
+        return DriftReport()
+
+    @property
+    def has_semantic_drift(self) -> bool:
+        """Return True if any prompt drift occurred during replay."""
+        return self.drift_report.has_drift
 
     @property
     def guardrail_report(self) -> GuardrailReport | None:

@@ -6,7 +6,7 @@ Large Language Models (LLMs) and autonomous AI agents.
 
 from __future__ import annotations
 
-from tracereplay import chaos, guardrails
+from tracereplay import chaos, guardrails, semantic
 from tracereplay.agent import AgentStep, AgentStepType, AgentTracker, record_tool
 from tracereplay.chaos import ChaosConfig, ChaosEngine, Fault, FaultType
 from tracereplay.config import TraceReplayConfig, configure, get_config, reset_config
@@ -33,6 +33,7 @@ from tracereplay.exceptions import (
     LiveFallbackProhibitedError,
     RecordingError,
     RequestMismatchError,
+    SemanticDriftError,
     SequenceMismatchError,
     TokenBudgetExceededError,
     ToolExecutionError,
@@ -86,6 +87,23 @@ from tracereplay.providers import (
     unpatch,
 )
 from tracereplay.sanitizer import Sanitizer, sanitize_data
+from tracereplay.semantic import (
+    DriftAction,
+    DriftReport,
+    DriftStatus,
+    SemanticConfig,
+    SemanticDriftRecord,
+    SemanticMatcher,
+    calculate_semantic_similarity,
+    colorize_diff,
+    cosine_similarity_vectors,
+    generate_inline_token_diff,
+    generate_semantic_diff,
+    levenshtein_similarity,
+    token_cosine_similarity,
+    token_jaccard_similarity,
+    tokenize_text,
+)
 from tracereplay.storage import FixtureResolver, JsonStorageEngine, sanitize_filename
 
 __version__ = "0.1.0"
@@ -154,6 +172,7 @@ __all__ = [
     "TokenBudgetExceededError",
     "CostBudgetExceededError",
     "LatencyBudgetExceededError",
+    "SemanticDriftError",
     # Chaos Engineering
     "chaos",
     "ChaosConfig",
@@ -172,6 +191,23 @@ __all__ = [
     "token_budget",
     "cost_budget",
     "latency_budget",
+    # Semantic Matching & Drift Detection
+    "semantic",
+    "DriftAction",
+    "DriftReport",
+    "DriftStatus",
+    "SemanticConfig",
+    "SemanticDriftRecord",
+    "SemanticMatcher",
+    "calculate_semantic_similarity",
+    "colorize_diff",
+    "cosine_similarity_vectors",
+    "generate_inline_token_diff",
+    "generate_semantic_diff",
+    "levenshtein_similarity",
+    "token_cosine_similarity",
+    "token_jaccard_similarity",
+    "tokenize_text",
     # Storage & Sanitizer
     "Sanitizer",
     "sanitize_data",
