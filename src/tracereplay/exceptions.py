@@ -70,6 +70,43 @@ class RequestMismatchError(TraceReplayError):
         self.interaction_index = interaction_index
 
 
+class SemanticDriftError(RequestMismatchError):
+    """Raised when an incoming request drifts beyond the configured semantic threshold."""
+
+    def __init__(
+        self,
+        message: str,
+        similarity_score: float,
+        threshold: float,
+        expected: dict[str, Any] | None = None,
+        actual: dict[str, Any] | None = None,
+        diff: str | None = None,
+        semantic_diff: str | None = None,
+        inline_diff: str | None = None,
+        interaction_index: int | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        extra = dict(details) if details else {}
+        extra["similarity_score"] = similarity_score
+        extra["threshold"] = threshold
+        if semantic_diff:
+            extra["semantic_diff"] = semantic_diff
+        if inline_diff:
+            extra["inline_diff"] = inline_diff
+        super().__init__(
+            message=message,
+            expected=expected,
+            actual=actual,
+            diff=diff,
+            interaction_index=interaction_index,
+            details=extra,
+        )
+        self.similarity_score = similarity_score
+        self.threshold = threshold
+        self.semantic_diff = semantic_diff
+        self.inline_diff = inline_diff
+
+
 class InvalidFixtureError(TraceReplayError):
     """Raised when a fixture file contains malformed JSON or fails schema validation."""
 

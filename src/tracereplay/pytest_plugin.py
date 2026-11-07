@@ -64,8 +64,9 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "trace_replay(fixture=None, mode=None, dir=None, fork_at_step=None, fork_at_tool=None, "
         "fork_at_total_step=None, fork_session_name=None, fork_to_mode=None, chaos=None, "
-        "guardrails=None, max_cost_usd=None, max_tokens=None, max_latency_ms=None): "
-        "Record, replay, time-travel fork, inject AI faults, or enforce token/cost guardrails.",
+        "guardrails=None, max_cost_usd=None, max_tokens=None, max_latency_ms=None, "
+        "semantic_matching=None, semantic_threshold=None, semantic_action=None): "
+        "Record, replay, time-travel fork, inject AI faults, guardrails, or detect semantic drift.",
     )
 
 
@@ -157,6 +158,9 @@ def create_tracereplay_session(
     max_cost_usd_param = marker.kwargs.get("max_cost_usd") if marker else None
     max_tokens_param = marker.kwargs.get("max_tokens") if marker else None
     max_latency_ms_param = marker.kwargs.get("max_latency_ms") if marker else None
+    semantic_matching_param = marker.kwargs.get("semantic_matching") if marker else None
+    semantic_threshold_param = marker.kwargs.get("semantic_threshold") if marker else None
+    semantic_action_param = marker.kwargs.get("semantic_action") if marker else None
 
     sess = TraceReplaySession(
         name=fixture_name,
@@ -172,6 +176,9 @@ def create_tracereplay_session(
         max_cost_usd=max_cost_usd_param,
         max_tokens=max_tokens_param,
         max_latency_ms=max_latency_ms_param,
+        semantic_matching=semantic_matching_param,
+        semantic_threshold=semantic_threshold_param,
+        semantic_action=semantic_action_param,
     )
 
     with sess:

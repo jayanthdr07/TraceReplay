@@ -54,6 +54,9 @@ class TraceReplayConfig(BaseModel):
     strict_ordering: bool = Field(default=True)
     allow_streaming: bool = Field(default=True)
     max_fixture_size_mb: float = Field(default=50.0, ge=1.0)
+    semantic_matching: bool = Field(default=False)
+    semantic_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    semantic_action: str = Field(default="accept")
 
     @classmethod
     def from_env(cls) -> TraceReplayConfig:
@@ -96,6 +99,9 @@ class TraceReplayConfig(BaseModel):
             match_parameters=_get_env_bool("TRACEREPLAY_MATCH_PARAMETERS", True),
             strict_ordering=_get_env_bool("TRACEREPLAY_STRICT_ORDERING", True),
             allow_streaming=_get_env_bool("TRACEREPLAY_ALLOW_STREAMING", True),
+            semantic_matching=_get_env_bool("TRACEREPLAY_SEMANTIC_MATCHING", False),
+            semantic_threshold=float(os.getenv("TRACEREPLAY_SEMANTIC_THRESHOLD", "0.85")),
+            semantic_action=os.getenv("TRACEREPLAY_SEMANTIC_ACTION", "accept").lower(),
         )
 
 
