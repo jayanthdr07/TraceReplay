@@ -67,6 +67,9 @@ Documentation = "https://github.com/rakshithkumar608/TraceReplay#readme"
 Repository = "https://github.com/rakshithkumar608/TraceReplay"
 Issues = "https://github.com/rakshithkumar608/TraceReplay/issues"
 
+[project.scripts]
+tracereplay = "tracereplay.cli:main"
+
 [project.entry-points.pytest11]
 tracereplay = "tracereplay.pytest_plugin"
 
