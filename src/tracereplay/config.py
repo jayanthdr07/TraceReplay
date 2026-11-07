@@ -57,6 +57,7 @@ class TraceReplayConfig(BaseModel):
     semantic_matching: bool = Field(default=False)
     semantic_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     semantic_action: str = Field(default="accept")
+    freeze_time: bool | str | None = Field(default=None)
 
     @classmethod
     def from_env(cls) -> TraceReplayConfig:
@@ -90,6 +91,16 @@ class TraceReplayConfig(BaseModel):
             default=["seed", "user", "request_id", "timestamp"],
         )
 
+        raw_freeze = os.getenv("TRACEREPLAY_FREEZE_TIME")
+        freeze_time_val: bool | str | None = None
+        if raw_freeze is not None:
+            if raw_freeze.strip().lower() in ("true", "1", "yes"):
+                freeze_time_val = True
+            elif raw_freeze.strip().lower() in ("false", "0", "no"):
+                freeze_time_val = False
+            else:
+                freeze_time_val = raw_freeze.strip()
+
         return cls(
             mode=mode,
             fixtures_dir=fixtures_dir,
@@ -102,6 +113,7 @@ class TraceReplayConfig(BaseModel):
             semantic_matching=_get_env_bool("TRACEREPLAY_SEMANTIC_MATCHING", False),
             semantic_threshold=float(os.getenv("TRACEREPLAY_SEMANTIC_THRESHOLD", "0.85")),
             semantic_action=os.getenv("TRACEREPLAY_SEMANTIC_ACTION", "accept").lower(),
+            freeze_time=freeze_time_val,
         )
 
 

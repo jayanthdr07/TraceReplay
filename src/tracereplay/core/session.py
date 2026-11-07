@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import contextvars
+import datetime
 from collections.abc import Callable
 from typing import Any
 
 from tracereplay.chaos.engine import ChaosEngine
 from tracereplay.chaos.models import ChaosConfig, Fault
+from tracereplay.clock import ClockConfig, DeterministicClock
 from tracereplay.config import TraceReplayConfig, get_config
 from tracereplay.core.recorder import Recorder
 from tracereplay.core.replayer import Replayer
@@ -59,6 +61,8 @@ class TraceReplaySession:
         semantic_threshold: float | None = None,
         semantic_action: DriftAction | str | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
+        freeze_time: bool | datetime.datetime | datetime.date | str | float | int | None = None,
+        simulate_sleep: bool = True,
     ) -> None:
         self.name = name
         self.config = config or get_config()
@@ -131,6 +135,24 @@ class TraceReplaySession:
                 config=self.semantic_config,
                 global_config=self.config,
             )
+
+        # Deterministic Clock & Freeze Time
+        self.clock_config: ClockConfig | None = None
+        self.clock: DeterministicClock | None = None
+
+        eff_freeze = freeze_time if freeze_time is not None else self.config.freeze_time
+        if eff_freeze is not None and eff_freeze is not False:
+            if eff_freeze is True:
+                self.clock_config = ClockConfig(
+                    auto_freeze_to_fixture=True,
+                    simulate_sleep=simulate_sleep,
+                )
+            else:
+                self.clock_config = ClockConfig(
+                    target_time=eff_freeze,
+                    simulate_sleep=simulate_sleep,
+                )
+            self.clock = DeterministicClock(config=self.clock_config)
 
         self._is_forked: bool = False
         self._llm_step_count: int = 0
@@ -328,8 +350,30 @@ class TraceReplaySession:
         report = self.guardrail_report
         return report.to_dict() if report is not None else None
 
+    @property
+    def is_time_frozen(self) -> bool:
+        """Return True if deterministic clock is actively patched."""
+        return self.clock is not None and self.clock._is_patched
+
     def __enter__(self) -> TraceReplaySession:
         self._token = _CURRENT_SESSION.set(self)
+        if (
+            self.clock is not None
+            and self.clock_config
+            and self.clock_config.auto_freeze_to_fixture
+            and self.mode == ReplayMode.REPLAY
+            and self.replayer is not None
+        ):
+            fixture_rec = self.replayer.record
+            target_dt = (
+                fixture_rec.interactions[0].timestamp
+                if fixture_rec.interactions
+                else fixture_rec.created_at
+            )
+            self.clock.set_time(target_dt)
+
+        if self.clock is not None:
+            self.clock.patch()
         return self
 
     def __exit__(
@@ -338,6 +382,9 @@ class TraceReplaySession:
         exc_val: BaseException | None,
         exc_tb: Any,
     ) -> None:
+        if self.clock is not None:
+            self.clock.unpatch()
+
         if self._token is not None:
             _CURRENT_SESSION.reset(self._token)
             self._token = None
