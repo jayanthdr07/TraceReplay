@@ -97,3 +97,12 @@ def check_database_health() -> dict[str, Any]:
             "error": str(e),
             "url": settings.supabase_url,
         }
+
+
+def extract_records(data: Any) -> list[dict[str, Any]]:
+    """Safely extract list of dictionary records from Supabase query data."""
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return []
