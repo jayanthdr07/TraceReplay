@@ -112,7 +112,7 @@ from tracereplay.semantic import (
 )
 from tracereplay.storage import FixtureResolver, JsonStorageEngine, sanitize_filename
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __author__ = "TraceReplay Contributors"
 __license__ = "MIT"
 

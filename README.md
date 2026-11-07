@@ -179,87 +179,118 @@ flowchart LR
 
 ## The 5 Breakthrough WOW Features
 
-| # | Breakthrough Feature | What It Does | Why Developers Love It |
-|---|---|---|---|
-| **1** | **Time-Travel Forking** | Fast-forward through steps 1..N deterministically, then fork into live recording at any step or tool call. | Test edge cases at step 10 of an agent workflow without paying for or repeating steps 1..9. |
-| **2** | **AI Chaos Engineering** | Inject realistic AI failures: 429 rate limits, timeouts, server outages, malformed JSON, hallucinated tools, safety refusals, and latency jitters. | Prove your agent recovers gracefully before deploying to production. |
-| **3** | **Token, Cost & Latency Guardrails** | Enforce USD budget caps, max token limits, and latency thresholds with hard stops. Run offline regression detection at $0 cost. | Block runaway agent loops and catch stealth prompt inflation in CI before spending a dime. |
-| **4** | **Semantic Diff & Drift Detection** | Fuzzy request matching using pure-Python hybrid cosine similarity or vector embeddings. Inline word diffs and drift reporting. | Prompts evolve naturally; minor wording tweaks replay smoothly instead of crashing tests. |
-| **5** | **Deterministic Clock & Freeze Time** | Freeze `datetime.now()` to match recorded fixture timestamps. Fast-forward `time.sleep()` instantly (0 real delay). | Dynamic prompt dates ("Today is 2026-11-07") stay 100% deterministic; 60s backoff sleeps run in 0.04 ms. |
+TraceReplay introduces 5 breakthrough capabilities purpose-built for LLMs and autonomous AI agents:
 
 ---
 
-### 1. Time-Travel Forking
-Replay steps 0..3 deterministically from disk, then fork into live recording at step 4:
+### 1. 🕒 Time-Travel Forking (`fork_at_step`, `fork_at_tool`)
+**The Problem:** An autonomous agent executes 10 sequential reasoning steps (search $\rightarrow$ calculate $\rightarrow$ filter $\rightarrow$ write code). Step 8 encounters a bug. In traditional testing, you had to re-run steps 1 through 7 every single time—wasting minutes and burning API tokens on repeated reasoning.
 
-```python
-with tracereplay.session(
-    name="base_workflow",
-    fork_at_step=4,
-    fork_session_name="base_workflow_branch_step4",
-    fork_to_mode="record",
-) as sess:
-    # Steps 0-3 execute deterministically for free
-    # Step 4 branches into live execution and saves to the new fixture!
-    run_multiturn_agent()
-```
-
----
-
-### 2. AI Chaos Engineering
-Test your agent's retry and fallback logic by injecting authentic provider errors:
+**How It Works:** TraceReplay fast-forwards through steps 0..N deterministically from disk for **$0.00**, and branches into live recording starting at any target step or tool:
 
 ```python
 import tracereplay as tr
 
-# Inject a 429 Rate Limit error into the order_service tool:
-chaos_fault = tr.chaos.rate_limit(tool="order_service", retry_after=5)
+# Replay steps 0..7 instantly from "base_workflow", then fork into live execution at step 8:
+with tr.session(
+    name="base_workflow",
+    fork_at_step=8,
+    fork_session_name="onboarding_bugfix_branch",
+    fork_to_mode="record",
+):
+    # Steps 0..7 replay deterministically from disk in 0.001 seconds
+    # Step 8 executes live against the provider and records to the new branch fixture!
+    run_10_step_agent()
+```
 
-with tr.session("resilience_test", chaos=[chaos_fault]):
-    # Your agent's backoff and retry handling is tested without touching the internet!
+You can also fork right when a specific tool is called:
+```python
+with tr.session(name="base_workflow", fork_at_tool="execute_sql_query", fork_to_mode="record"):
     run_agent()
 ```
 
-TraceReplay includes 9 native fault injectors: `rate_limit`, `timeout`, `server_error`, `context_length_exceeded`, `malformed_json`, `hallucinated_tool`, `safety_refusal`, `latency_jitter`, and `custom_exception`.
-
 ---
 
-### 3. Token, Cost & Latency Guardrails
-Set hard budget caps on test runs. If an agent loops infinitely or inflates prompts, TraceReplay cuts it off:
+### 2. 💥 AI Chaos Engineering & Fault Injection (`tr.chaos`)
+**The Problem:** How do you test whether your agent's retry logic, exponential backoff, or fallback model works when OpenAI returns a `429 Too Many Requests` or `504 Gateway Timeout`? You cannot force third-party APIs to crash on demand!
+
+**How It Works:** TraceReplay injects authentic, realistic provider errors right into your client or tool executions on demand without touching the internet:
 
 ```python
 import tracereplay as tr
 
-# Hard cap: Max $0.05 USD and max 2,000 total tokens
-budget_guard = tr.guardrails.cost_budget(max_cost_usd=0.05)
+# Inject a native 429 Rate Limit error on turn 2:
+chaos_fault = tr.chaos.rate_limit(step=1, retry_after=5, native=True)
 
-with tr.session("financial_analyst", guardrails=budget_guard) as sess:
+with tr.session("resilience_test", chaos=[chaos_fault]):
+    # Your agent's backoff and retry handling is tested under real conditions!
+    run_agent_with_retry()
+```
+
+TraceReplay supports **9 native fault types**:
+- `tr.chaos.rate_limit(step=..., retry_after=5)`: Simulates 429 Rate Limits.
+- `tr.chaos.timeout(step=..., duration_seconds=2.0)`: Simulates network & API timeouts.
+- `tr.chaos.server_error(step=..., status_code=503)`: Simulates 5xx provider outages.
+- `tr.chaos.context_length_exceeded(max_context=128000)`: Simulates token window overflows.
+- `tr.chaos.malformed_json()`: Corrupts structured JSON outputs.
+- `tr.chaos.hallucinated_tool(tool_name="unauthorized_db")`: Injects invalid tool calls.
+- `tr.chaos.safety_refusal()`: Simulates safety and content filter refusals.
+- `tr.chaos.latency_jitter(min_delay_ms=500, max_delay_ms=2000)`: Simulates network lag.
+- `tr.chaos.custom_exception(exception=MyError("Custom failure"))`: Injects domain errors.
+
+---
+
+### 3. 💰 Token, Cost & Latency Guardrails (`tr.guardrails`)
+**The Problem:** A developer accidentally writes a `while True` loop calling LLMs, costing hundreds of dollars in CI, or a prompt engineering change silently inflates token usage by 300%.
+
+**How It Works:** TraceReplay enforces strict budget caps. If an agent exceeds your dollar threshold, token count, or latency limit, TraceReplay acts as a circuit breaker and cuts off execution:
+
+```python
+import tracereplay as tr
+
+# Hard budget caps: Max $0.05 USD and max 2,000 total tokens
+budget = tr.guardrails.cost_budget(max_cost_usd=0.05)
+
+with tr.session("financial_analyst", guardrails=budget) as sess:
+    # If a rogue multi-turn loop exceeds $0.05, TraceReplay cuts off execution
+    # immediately by raising CostBudgetExceededError!
     run_agent()
 
 # Print comprehensive token and dollar breakdown:
 print(sess.guardrail_report.summary_text())
 ```
 
+> [!TIP]
+> **Zero-Cost Offline Regression Testing:**
+> When replaying fixtures in CI, TraceReplay calculates replayed tokens and costs against your limits. If a prompt grew too large, CI catches it offline at **$0 cost**!
+
 ---
 
-### 4. Semantic Diff & Smart Drift Detection
-Normal mocking breaks if 1 word changes. TraceReplay uses pure-Python hybrid cosine similarity to tolerate natural prompt evolution:
+### 4. 🧠 Semantic Diff & Smart Drift Detection (`tr.semantic`)
+**The Problem:** Normal mocking is brittle: if you recorded `"The capital of France is Paris."`, but tomorrow your prompt outputs `"Paris is France's capital."`, normal tools scream **FAIL: Strings do not match!** even though the meaning is 100% identical.
+
+**How It Works:** TraceReplay calculates pure-Python hybrid semantic similarity (word-token cosine + Levenshtein sequence ratio). If the meaning is $\ge 85\%$ identical, it accepts it and prints an inline colorized word diff:
 
 ```python
-with tracereplay.session(
+import tracereplay as tr
+
+with tr.session(
     name="customer_service",
     mode="replay",
     semantic_matching=True,
-    semantic_threshold=0.85,  # Accepts drift if similarity >= 85%
+    semantic_threshold=0.85,  # Tolerates drift if similarity >= 85%
 ) as sess:
     # "You are a customer service assistant. Explain refund policy."
     # vs
     # "You are a polite customer support assistant. Explain refund policy concisely."
     # Replays successfully without crashing!
     run_agent()
+
+# Inspect prompt evolution across your test suite:
+print(sess.drift_report.summary_text())
 ```
 
-TraceReplay prints an inline colorized word diff in your terminal:
+TraceReplay prints an inline colorized word diff directly in your terminal:
 ```text
 Inline Word Diff:
   you are a {+polite+} customer [-service-] {+support+} assistant . explain refund policy {+concisely+} .
@@ -271,18 +302,23 @@ Inline Word Diff:
 
 ---
 
-### 5. Deterministic Clock & Freeze Time
-Eliminate dynamic timestamp flakiness and fast-forward sleep delays:
+### 5. ⏳ Deterministic Clock & Freeze Time (`tr.clock`)
+**The Problem:** An agent has exponential backoff (`time.sleep(2)`, `time.sleep(4)`, `time.sleep(8)`). Running tests takes **14 real seconds** just waiting for sleep timers! Plus, tests checking dynamic dates ("Today is 2026-11-07") fail next week when the calendar changes.
+
+**How It Works:** TraceReplay freezes system time to a fixed timestamp, and **simulates `time.sleep` at lightspeed**:
 
 ```python
 import time
 from tracereplay import freeze_time
 
-# Freeze datetime to a fixed timestamp and fast-forward sleeps:
+# Freeze datetime to a fixed timestamp and fast-forward all sleep() calls instantly:
 with freeze_time("2026-11-07 10:00:00 UTC", simulate_sleep=True):
     # A 60-second exponential retry sleep completes in 0.002 seconds!
     time.sleep(60.0)
 ```
+
+> [!NOTE]
+> **Automatic Fixture Time Sync:** In `REPLAY` mode, TraceReplay automatically freezes `datetime.now()` to the exact second the fixture was recorded, so time-sensitive prompts never break!
 
 ---
 
