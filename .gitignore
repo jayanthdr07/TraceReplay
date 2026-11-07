@@ -36,6 +36,7 @@ staging_phase1/
 .idea/
 *.swp
 *.swo
+/app
 
 
 # Local Assets & Scratch Directories
